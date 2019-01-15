@@ -16,7 +16,7 @@ def main():
     for dataset in datasets:
         print('Downloading {} dataset.'.format(dataset))
         current_year = datetime.now().year
-        for year in range(1889, current_year):
+        for year in range(1889, current_year + 1):
             destination = 'data/{dataset}/{year}.{dataset}.nc'.format(dataset=dataset, year=year)
             url = DOWNLOAD_URL.format(dataset=dataset, year=year)
             if os.path.isfile(destination) and year != current_year:  # Always redownload most recent year
