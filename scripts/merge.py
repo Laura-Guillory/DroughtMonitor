@@ -1,8 +1,10 @@
 import xarray
 from dask.diagnostics import ProgressBar
 
-dataset = xarray.open_mfdataset('data/daily_rain/*.daily_rain.nc')
-delayed_obj = dataset.to_netcdf('data/full_daily_rain.nc', compute=False)
+dataset_paths = [{'inputs': 'data/daily_rain/*.daily_rain.nc', 'output': 'data/daily_rain/full_daily_rain.nc'}]
 
-with ProgressBar():
-    delayed_obj.compute()
+for dataset_path in dataset_paths:
+    dataset = xarray.open_mfdataset(dataset_path['inputs'])
+    delayed_obj = dataset.to_netcdf(dataset_path['output'], compute=False)
+    with ProgressBar():
+        delayed_obj.compute()
