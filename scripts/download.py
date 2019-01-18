@@ -1,19 +1,30 @@
-from urllib.request import urlretrieve, ContentTooShortError
+from urllib.request import urlretrieve
+from urllib.error import ContentTooShortError
 import os
 from datetime import datetime
-
-# If you cancel this script partway through you might want to delete the most recent file as it will be partially
-# complete.
-
-datasets = ['daily_rain', 'et_morton_actual', 'et_morton_potential', 'et_morton_wet', 'et_short_crop', 'et_tall_crop',
-            'evap_morton_lake', 'evap_pan', 'evap_syn', 'max_temp', 'min_temp', 'monthly_rain', 'mslp', 'radiation',
-            'rh_tmax', 'vp', 'vp_deficit']
+import argparse
 
 DOWNLOAD_URL = 'https://s3-ap-southeast-2.amazonaws.com/silo-open-data/annual/{dataset}/{year}.{dataset}.nc'
+DATASET_CHOICES = ['daily_rain', 'et_morton_actual', 'et_morton_potential', 'et_morton_wet', 'et_short_crop',
+                 'et_tall_crop', 'evap_morton_lake', 'evap_pan', 'evap_syn', 'max_temp', 'min_temp', 'monthly_rain',
+                 'mslp', 'radiation', 'rh_tmax', 'vp', 'vp_deficit']
 
 
 def main():
-    for dataset in datasets:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-datasets',
+        help='Choose which datasets to download.',
+        choices=DATASET_CHOICES + ['all'],
+        nargs='*',
+        required=True
+    )
+    args = parser.parse_args()
+    if args.datasets == 'all':
+        chosen_datasets = DATASET_CHOICES
+    else:
+        chosen_datasets = args.datasets
+    for dataset in chosen_datasets:
         print('Downloading {} dataset.'.format(dataset))
         current_year = datetime.now().year
         for year in range(1889, current_year + 1):
