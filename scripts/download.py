@@ -1,5 +1,5 @@
 from urllib.request import urlretrieve
-from urllib.error import ContentTooShortError
+from urllib.error import HTTPError, ContentTooShortError
 import os
 from datetime import datetime
 import argparse
@@ -45,6 +45,9 @@ def try_to_download(url, destination):
     while remaining_download_tries > 0:
         try:
             urlretrieve(url, destination)
+            return
+        except HTTPError:
+            print('URL does not exist: ' + url)
             return
         except ContentTooShortError:
             remaining_download_tries -= 1

@@ -5,6 +5,7 @@ dataset_paths = [{'inputs': 'data/daily_rain/*.daily_rain.nc', 'output': 'data/d
 
 for dataset_path in dataset_paths:
     dataset = xarray.open_mfdataset(dataset_path['inputs'])
+    dataset.transpose('lat', 'long', 'time')
     delayed_obj = dataset.to_netcdf(dataset_path['output'], compute=False)
     with ProgressBar():
         delayed_obj.compute()
