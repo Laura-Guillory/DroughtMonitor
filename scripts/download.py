@@ -49,6 +49,8 @@ def try_to_download(url, destination):
         except HTTPError:
             print('URL does not exist: ' + url)
             return
+        except (TimeoutError, ConnectionResetError) as e:
+            print(e)
         except ContentTooShortError:
             remaining_download_tries -= 1
             continue
