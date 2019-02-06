@@ -51,6 +51,8 @@ def try_to_download(url, destination):
             return
         except (TimeoutError, ConnectionResetError) as e:
             print(e)
+            remaining_download_tries -= 1
+            continue
         except ContentTooShortError:
             remaining_download_tries -= 1
             continue
