@@ -18,6 +18,10 @@ Run download.py to download all the data, which will be stored in the newly crea
 downloaded files will be skipped, so you can run this again to update your copy of the data without redownloading 
 anything but the current year. 
 
+Arguments:  
+*path* - Determines where the data will be saved. Defaults to data/{dataset}/{year}.{dataset}.nc  
+*datasets* - Which datasets to download
+
 If you cancel this script midway through it's likely that the most recent file will
 be empty/corrupt so you should delete it before running again.
 
