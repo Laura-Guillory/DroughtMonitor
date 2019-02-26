@@ -40,8 +40,16 @@ def calc_avg_temp():
         MERGED_FILE_PATH.format(dataset=input_datasets[1])
     ]
     with xarray.open_mfdataset(files, chunks={'time': 10}) as dataset:
-        avg_temp = xarray.DataArray(dataset.max_temp - dataset.min_temp)
-        print(avg_temp)
+        avg_temp = xarray.DataArray((dataset.max_temp + dataset.min_temp) / 2)
+        dataset['avg_temp'] = avg_temp
+        dataset = dataset.drop('max_temp').drop('min_temp')
+        encoding = {}
+        for key in dataset.keys():
+            encoding[key] = {'zlib': True}
+        delayed_obj = dataset.to_netcdf(MERGED_FILE_PATH.format(dataset='avg_temp'), compute=False, format='NETCDF4',
+                                        engine='netcdf4', unlimited_dims='time', encoding=encoding)
+        with ProgressBar():
+            delayed_obj.compute()
 
 
 def merge_years(dataset_name):
