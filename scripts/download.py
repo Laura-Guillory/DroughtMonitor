@@ -23,7 +23,6 @@ def main():
     parser.add_argument(
         '-path',
         help='Choose where to save the datasets.',
-        required=True
     )
     args = parser.parse_args()
     if args.datasets == 'all':
