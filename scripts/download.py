@@ -5,7 +5,7 @@ from datetime import datetime
 import argparse
 
 DOWNLOAD_URL = 'https://s3-ap-southeast-2.amazonaws.com/silo-open-data/annual/{dataset}/{year}.{dataset}.nc'
-PATH = 'D:/data/{dataset}/{year}.{dataset}.nc'
+DEFAULT_PATH = 'data/{dataset}/{year}.{dataset}.nc'
 DATASET_CHOICES = ['daily_rain', 'et_morton_actual', 'et_morton_potential', 'et_morton_wet', 'et_short_crop',
                  'et_tall_crop', 'evap_morton_lake', 'evap_pan', 'evap_syn', 'max_temp', 'min_temp', 'monthly_rain',
                  'mslp', 'radiation', 'rh_tmax', 'vp', 'vp_deficit']
@@ -14,14 +14,14 @@ DATASET_CHOICES = ['daily_rain', 'et_morton_actual', 'et_morton_potential', 'et_
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-datasets',
+        '--datasets',
         help='Choose which datasets to download.',
         choices=DATASET_CHOICES + ['all'],
         nargs='*',
         required=True
     )
     parser.add_argument(
-        '-path',
+        '--path',
         help='Choose where to save the datasets.',
     )
     args = parser.parse_args()
@@ -29,7 +29,7 @@ def main():
         chosen_datasets = DATASET_CHOICES
     else:
         chosen_datasets = args.datasets
-    path = args.path if args.path else PATH
+    path = args.path if args.path else DEFAULT_PATH
     for dataset in chosen_datasets:
         print('Downloading {} dataset.'.format(dataset))
         current_year = datetime.now().year

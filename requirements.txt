@@ -3,3 +3,6 @@ dask
 netCDF4
 toolz
 numpy
+Pillow
+matplotlib
+scipy

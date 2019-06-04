@@ -45,14 +45,14 @@ def get_options():
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-datasets',
-        help='Choose which datasets to merge.',
+        '--datasets',
+        help='Choose which datasets to prepare.',
         choices=DATASET_CHOICES + ['all'],
         nargs='*',
         required=True
     )
     parser.add_argument(
-        '-path',
+        '--path',
         help='The directory containing the dataset\'s directory.',
         default=DEFAULT_FILE_PATH
     )
