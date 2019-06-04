@@ -2,3 +2,4 @@ xarray
 dask
 netCDF4
 toolz
+numpy

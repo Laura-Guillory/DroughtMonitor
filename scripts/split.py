@@ -4,7 +4,7 @@ from dask.diagnostics import ProgressBar
 
 
 """
-To retrive specific time slices from netCDF files
+To retrieve specific time slices from netCDF files
 """
 
 time_start = '2009-09'
