@@ -66,10 +66,7 @@ def calc_avg_temp(file_path):
     input_datasets = ['max_temp', 'min_temp']
     merge_prerequisite_datasets(input_datasets, file_path)
     merged_file_path = file_path + '/{dataset}/merged_{dataset}.nc'
-    files = [
-        merged_file_path.format(dataset=input_datasets[0]),
-        merged_file_path.format(dataset=input_datasets[1])
-    ]
+    files = [merged_file_path.format(dataset=x) for x in input_datasets]
     with xarray.open_mfdataset(files, chunks={'time': 10}) as dataset:
         dataset['avg_temp'] = (dataset.max_temp + dataset.min_temp) / 2
         dataset['avg_temp'].attrs['units'] = dataset.max_temp.units

@@ -25,7 +25,7 @@ def main():
         help='Choose where to save the datasets.',
     )
     args = parser.parse_args()
-    if args.datasets == 'all':
+    if len(args.datasets) == 1 and args.datasets[0] == 'all':
         chosen_datasets = DATASET_CHOICES
     else:
         chosen_datasets = args.datasets
