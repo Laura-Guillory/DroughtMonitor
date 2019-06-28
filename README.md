@@ -1,7 +1,6 @@
 # Climate Data Tools
 
-This repository contains tools for downloading gridded Australian climate data from 
-[LongPaddock's SILO](https://silo.longpaddock.qld.gov.au/) in a netCDF format and processing that data.
+This repository contains Tools for obtaining and processing gridded climate data from [LongPaddock's SILO](https://silo.longpaddock.qld.gov.au/), and other netCDF files.
 
 ## Requirements
 
@@ -9,7 +8,8 @@ This repository contains tools for downloading gridded Australian climate data f
 * Anaconda
 * Install the packages listed in requirements.txt
 
-Scripts can be found in the `scripts` directory. Please be advised they require a ton of disk space and time.
+Scripts can be found in the `scripts` directory. Please be advised it can take some time to process large volumes of 
+data.
 
 ### download.py
 
@@ -84,6 +84,36 @@ Optional arguments:
 | --min            | The minimum level for the plotted variable shown in the graph and colorbar. |
 | --max            | The maximum level for the plotted variable shown in the graph and colorbar. |
 | --levels         | The number of levels for the plotted variable shown in the graph and colorbar. |
+
+### truncate_time_dim.py
+
+This tool will go through each time entry of a netCDF file and truncate the datetime value to be at the beginning of the
+month. 
+
+e.g.  
+2018-09-06 -> 2018-09-01  
+2018-10-07 -> 2018-10-01  
+2018-11-30 -> 2018-11-01  
+
+This can be useful if you are processing multiple datasets with one entry per month and experiencing issues due to a slight date mismatch.
+
+|||
+|----------|---------------------------------------------------------------------------------------|
+| --input  | The path of the file to use as input (required)                                                 |
+| --output | The location to save the result. If not supplied, the input file will be overwritten. |
+
+### transpose.py
+
+Saves the dimensions of a netCDF file in a different order, because some programs will expect the dimensions to be
+ordered a specific way and won't run without it.
+
+Incomplete.
+
+### esrigrid2netcdf.py
+
+Converts a folder of data in ESRI gridded format and convert it into a single netCDF file.
+
+Incomplete.
 
 ## Contacts
 

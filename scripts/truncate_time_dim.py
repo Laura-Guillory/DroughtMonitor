@@ -46,7 +46,7 @@ def get_options():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--input',
-        help='The path of the file to use for this operation.',
+        help='The path of the file to use as input.',
         required=True
     )
     parser.add_argument(
