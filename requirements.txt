@@ -6,3 +6,6 @@ numpy
 Pillow
 matplotlib
 scipy
+pyproj
+proj4
+geos

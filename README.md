@@ -48,8 +48,8 @@ Arguments:
 
 |||
 |--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| --path             | Determines where the data will be saved. Defaults to data/{dataset}/{year}.{dataset}.nc                                                                                                        |
-| --datasets         | Which datasets to prepare. This argument is required. Accepts multiple arguments. Check DATASET_CHOICES inside script to see options for this argument.
+| --path             | Determines where the input files can be found. Defaults to data/{dataset}/{year}.{dataset}.nc. Output will be saved in the same directory as 'full_{dataset}.nc'                                                                |
+| --datasets         | Which datasets to prepare. This argument is required. Accepts multiple arguments. Check DOWNLOADED_DATASETS and COMPUTED_DATASETS inside script to see options for this argument.
 
 ### generate_graphs.py
 
