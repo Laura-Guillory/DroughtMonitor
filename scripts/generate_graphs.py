@@ -1,9 +1,9 @@
 from netCDF4 import Dataset, num2date
 import numpy as np
+import os
 from mpl_toolkits.basemap import Basemap
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import argparse
-import os
 from datetime import datetime
 from multiprocessing import Pool
 from matplotlib.font_manager import FontProperties
