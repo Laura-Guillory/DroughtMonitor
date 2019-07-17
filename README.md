@@ -79,7 +79,7 @@ Optional arguments:
 | --end_date       | See --start_date                                                                                                                                                                                                                                                               |
 | --title          | Sets the graph's title on the lower left. |
 | --subtitle       | Sets the graph's subtitle on the lower left |
-| --colormap       | The color map of the graph. See the following link for options: https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html' |
+| --colormap       | The color map of the graph. See [Matlib's Colormaps](https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html) for options. |
 | --colorbar_label | The label above the coloarbar legend (usually an abbreviation of the index name) |
 | --min            | The minimum level for the plotted variable shown in the graph and colorbar. |
 | --max            | The maximum level for the plotted variable shown in the graph and colorbar. |

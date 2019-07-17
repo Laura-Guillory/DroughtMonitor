@@ -102,7 +102,7 @@ def calc_monthly_et_short_crop(file_path):
     if not os.path.isfile(et_short_crop_file_path):
         merge_years('et_short_crop', file_path)
     with xarray.open_dataset(et_short_crop_file_path) as dataset:
-        monthly_et = dataset.resample(time='M').mean().transpose('lat', 'lon', 'time')
+        monthly_et = dataset.resample(time='M').sum(skipna=False).transpose('lat', 'lon', 'time')
         monthly_et = truncate_time_dim(monthly_et)
         monthly_et['et_short_crop'].attrs['units'] = dataset.et_short_crop.units
         output_file_path = get_merged_dataset_path(file_path, 'monthly_et_short_crop')
