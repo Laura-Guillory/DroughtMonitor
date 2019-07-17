@@ -107,7 +107,15 @@ This can be useful if you are processing multiple datasets with one entry per mo
 Saves the dimensions of a netCDF file in a different order, because some programs will expect the dimensions to be
 ordered a specific way and won't run without it.
 
-Incomplete.
+```
+Usage: python transpose.py --input INPUT_PATH --output OUTPUT_PATH --dims DIM_1 DIM_2 DIM_3
+```
+
+|||
+|----------|---------------------------------------------------------------------------------------|
+| --input  | The path of the file to use as input (required)                                       |
+| --output | The location to save the result. If not supplied, the input file will be overwritten. |
+| --dims   | The desired order of the dimensions (example: time lat lon)                           |
 
 ### esrigrid2netcdf.py
 
