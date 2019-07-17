@@ -1,4 +1,3 @@
-from netCDF4 import Dataset, num2date
 import numpy as np
 import os
 from mpl_toolkits.basemap import Basemap
@@ -7,6 +6,7 @@ import argparse
 from datetime import datetime
 from multiprocessing import Pool
 from matplotlib.font_manager import FontProperties
+import xarray
 import matplotlib
 matplotlib.use('TkAgg')
 from matplotlib import pyplot as plt, cm
@@ -101,17 +101,20 @@ def get_options():
     optional.add_argument(
         '--min',
         help='The minimum level for the plotted variable shown in the graph and colorbar.',
-        type=int
+        type=float
     )
     optional.add_argument(
         '--max',
         help='The maximum level for the plotted variable shown in the graph and colorbar.',
-        type=int
+        type=float
     )
     optional.add_argument(
         '--levels',
-        help='The number of levels for the plotted variable shown in the graph and colorbar.',
-        type=int
+        help='If one number is given, it is the number of levels for the plotted variable shown in the graph and '
+             'colorbar. If multiple numbers are given, they will be used as a list to explicitly set each level.'
+             'Example: 8, or 0 1 2 3 4 5 6 7',
+        nargs="+",
+        type=float
     )
     return parser.parse_args()
 
@@ -130,32 +133,41 @@ def generate_all_graphs(options):
     os.makedirs(os.path.dirname(options.output_file_base), exist_ok=True)
 
     # Open netCDF file
-    with Dataset(options.netcdf, mode='r') as dataset:
-        lat = dataset.variables['lat'][:]
-        lon = dataset.variables['lon'][:]
-        time = dataset.variables['time']
-        drought_index = dataset.variables[options.var_name][:]
-
+    with xarray.open_dataset(options.netcdf, chunks={'time': 10}) as dataset:
         start_date = datetime.strptime(options.start_date, '%Y-%m').date() if options.start_date else None
         end_date = datetime.strptime(options.end_date, '%Y-%m').date() if options.end_date else None
-
         graph_data = []
 
-        # Go through each time slice
-        for i in range(len(time)):
+        for date, data_slice in dataset[options.var_name].groupby('time'):
             # Skip this image if it's not between the start_date and end_date
-            date = num2date(time[i], time.units, time.calendar)
-            truncated_date = date.replace(day=1, hour=0, minute=0, second=0, microsecond=0).date()
+            truncated_date = date.astype('<M8[M]').item()
             if (start_date and truncated_date < start_date) or (end_date and truncated_date > end_date):
                 continue
 
             # Skip existing images if the user has not chosen to overwrite them.
-            file_path = '{}{}-{:02}.jpg'.format(options.output_file_base, date.year, date.month)
+            file_path = '{}{}-{:02}.jpg'.format(options.output_file_base, truncated_date.year, truncated_date.month)
             if not options.overwrite and os.path.exists(file_path):
                 continue
 
+            # Make sure coordinate dims exist
+            if 'lat' in dataset.dims:
+                lat = dataset.variables['lat']
+            elif 'latitude' in dataset.dims:
+                lat = dataset.variables['latitude']
+            else:
+                print('No latitude dimension found.')
+                return
+
+            if 'lon' in dataset.dims:
+                lon = dataset.variables['lon']
+            elif 'longitude' in dataset.dims:
+                lon = dataset.variables['longitude']
+            else:
+                print('No longitude dimension found.')
+                return
+
             # Add to list of images to be generated
-            graph_data.append((drought_index[:, :, i], lat, lon, options, file_path, date))
+            graph_data.append((data_slice, lat, lon, options, file_path, truncated_date))
 
     # Multiprocessing - one process per time slice
     pool = Pool(NUM_PROCESSES)
@@ -188,7 +200,7 @@ def generate_graph(graph_args):
     # Unpack arguments
     data, lat, lon, options, file_path, date = graph_args
     # Set size of the plot and get figure and axes values for later reference
-    fig, ax = plt.subplots(figsize=[8, 8])
+    fig, ax = plt.subplots(figsize=[7, 7])
     # Use custom shapefile if provided, otherwise use default Basemap. This prepares the graph for plotting.
     if options.shape:
         map_base = Basemap(resolution=None, llcrnrlon=lon.min(), llcrnrlat=lat.min(), urcrnrlon=lon.max(),
@@ -205,7 +217,9 @@ def generate_graph(graph_args):
     # Plot the data on the map
     lon, lat = np.meshgrid(lon, lat)
     colour_map = cm.get_cmap(options.colormap)
-    if options.min is not None and options.max is not None and options.levels is not None:
+    if options.levels is not None and len(options.levels) > 1:
+        plot = map_base.contourf(lon, lat, data, options.levels, latlon=True, cmap=colour_map, extend="both")
+    elif options.min is not None and options.max is not None and options.levels is not None:
         levels = np.linspace(options.min, options.max, options.levels)
         plot = map_base.contourf(lon, lat, data, levels, latlon=True, cmap=colour_map, extend="both")
     else:
@@ -226,7 +240,7 @@ def generate_graph(graph_args):
         axins.set_title(options.colorbar_label, fontproperties=REGULAR_FONT)
 
     # Save graph
-    plt.savefig(file_path, dpi=200, bbox_inches='tight')
+    plt.savefig(file_path, dpi=150, bbox_inches='tight', quality=80)
     plt.close()
 
 

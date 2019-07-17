@@ -83,7 +83,7 @@ Optional arguments:
 | --colorbar_label | The label above the coloarbar legend (usually an abbreviation of the index name) |
 | --min            | The minimum level for the plotted variable shown in the graph and colorbar. |
 | --max            | The maximum level for the plotted variable shown in the graph and colorbar. |
-| --levels         | The number of levels for the plotted variable shown in the graph and colorbar. |
+| --levels         | If one number is given, it is the number of levels for the plotted variable shown in the graph and colorbar. If multiple numbers are given, they will be used as a list to explicitly set each level. Example: 8, or 0 1 2 3 4 5 6 7 |
 
 ### truncate_time_dim.py
 
@@ -116,12 +116,6 @@ Usage: python transpose.py --input INPUT_PATH --output OUTPUT_PATH --dims DIM_1 
 | --input  | The path of the file to use as input (required)                                       |
 | --output | The location to save the result. If not supplied, the input file will be overwritten. |
 | --dims   | The desired order of the dimensions (example: time lat lon)                           |
-
-### esrigrid2netcdf.py
-
-Converts a folder of data in ESRI gridded format and convert it into a single netCDF file.
-
-Incomplete.
 
 ## Contacts
 

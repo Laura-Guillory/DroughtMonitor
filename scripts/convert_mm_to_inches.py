@@ -2,6 +2,13 @@ import argparse
 import xarray
 from datetime import datetime
 import os
+from utils import save_to_netcdf
+
+"""
+Converts the units of a variable in a netCDF file from millimetres to inches. The variable name must be supplied.
+
+To use from another Python script, just import convert_mm_to_inches() which returns an xarray Dataset.
+"""
 
 NUM_INCHES_IN_MM = 0.0393701
 
@@ -14,17 +21,17 @@ def main():
     dataset = xarray.open_dataset(options.input)
     result = convert_mm_to_inches(dataset, options.var)
 
-    if options.output and options.output is not options.input:
-        result.to_netcdf(options.output)
+    if options.output and options.output != options.input:
+        save_to_netcdf(result, options.output)
     else:
         # xarray uses lazy loading from disk so overwriting the input file isn't possible without forcing a full load
         # into memory, which is infeasible with large datasets. Instead, save to a temp file, then remove the original
         # and rename the temp file to the original. As a bonus, this is atomic.
-        temp_filename = options.output + '_temp'
-        result.to_netcdf(temp_filename)
+        temp_filename = options.input + '_temp'
+        save_to_netcdf(result, temp_filename)
         dataset.close()
         os.remove(options.input)
-        os.rename(temp_filename, options.output)
+        os.rename(temp_filename, options.input)
 
     end_time = datetime.now()
     print('End time: ' + str(end_time))
@@ -37,7 +44,7 @@ def get_options():
     Gets command line arguments and returns them.
     Options are accessed via options.input, options.output, etc.
 
-    Required arguments: input
+    Required arguments: input, var
     Optional arguments: output
 
     Run this with the -h (help) argument for more detailed information. (python convert_mm_to_inches.py -h)
@@ -60,8 +67,6 @@ def get_options():
         required=True
     )
     args = parser.parse_args()
-    if not args.output:
-        args.output = args.input
     return args
 
 
