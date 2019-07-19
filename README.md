@@ -73,17 +73,18 @@ Optional arguments:
 
 |||
 |------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| -o, --overwrite  | Existing images will be overwritten. Default behavior is to skip existing images.                                                                                                                                                                                              |
-| --shape          | The path of an optional shape file to use for the base map, such as from [gadm.org](https://gadm.org/). If not provided, a default will be provided.                                                                                                                           |
-| --start_date     | This tool will only produce graphs for dates between start_date and end_date. Dates should be given in the format of 2017-08. Both start_date and end_date arguments must be present for this to work. If this option  isn't used, default behavior is to generate all graphs. |
-| --end_date       | See --start_date                                                                                                                                                                                                                                                               |
-| --title          | Sets the graph's title on the lower left. |
-| --subtitle       | Sets the graph's subtitle on the lower left |
-| --colormap       | The color map of the graph. See [Matlib's Colormaps](https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html) for options. |
-| --colorbar_label | The label above the coloarbar legend (usually an abbreviation of the index name) |
-| --min            | The minimum level for the plotted variable shown in the graph and colorbar. |
-| --max            | The maximum level for the plotted variable shown in the graph and colorbar. |
-| --levels         | If one number is given, it is the number of levels for the plotted variable shown in the graph and colorbar. If multiple numbers are given, they will be used as a list to explicitly set each level. Example: 8, or 0 1 2 3 4 5 6 7 |
+| -o, --overwrite       | Existing images will be overwritten. Default behavior is to skip existing images.                                                                                                                                                                                              |
+| --shape               | The path of an optional shape file to use for the base map, such as from [gadm.org](https://gadm.org/). If not provided, a default will be provided.                                                                                                                           |
+| --start_date          | This tool will only produce graphs for dates between start_date and end_date. Dates should be given in the format of 2017-08. Both start_date and end_date arguments must be present for this to work. If this option  isn't used, default behavior is to generate all graphs. |
+| --end_date            | See --start_date                                                                                                                                                                                                                                                               |
+| --title               | Sets the graph's title on the lower left. |
+| --subtitle            | Sets the graph's subtitle on the lower left |
+| --colormap            | The color map of the graph. See [Matlib's Colormaps](https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html) for options. |
+| --colorbar_label      | The label above the colorbar legend (usually an abbreviation of the index name) |
+| --colorbar_ticklabels | Optional setting to replace numbers on the colorbar legend with labels. Example: "dry, normal, wet". There should be 1 more label than the number of levels. |
+| --min                 | The minimum level for the plotted variable shown in the graph and colorbar. |
+| --max                 | The maximum level for the plotted variable shown in the graph and colorbar. |
+| --levels              | If one number is given, it is the number of levels for the plotted variable shown in the graph and colorbar. If multiple numbers are given, they will be used as a list to explicitly set each level. Example: 8, or 0 1 2 3 4 5 6 7 |
 
 ### truncate_time_dim.py
 

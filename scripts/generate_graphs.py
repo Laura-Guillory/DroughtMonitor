@@ -16,6 +16,9 @@ NUM_PROCESSES = 4
 TITLE_FONT = FontProperties(fname='fonts/Roboto-Medium.ttf', size=14)
 SUBTITLE_FONT = FontProperties(fname='fonts/Roboto-LightItalic.ttf', size=12)
 REGULAR_FONT = FontProperties(fname='fonts/Roboto-Light.ttf', size=13)
+SMALL_FONT = FontProperties(fname='fonts/Roboto-Light.ttf', size=10)
+
+COLORBAR_LABELS_X_OFFSET = 1.3
 
 
 def main():
@@ -97,6 +100,10 @@ def get_options():
     optional.add_argument(
         '--colorbar_label',
         help='The label above the colorbar legend (usually an abbreviation of the index name).'
+    )
+    optional.add_argument(
+        '--colorbar_ticklabels',
+        help='Labels to replace the numbered levels on the colorbar.'
     )
     optional.add_argument(
         '--min',
@@ -220,7 +227,7 @@ def generate_graph(graph_args):
     if options.levels is not None and len(options.levels) > 1:
         plot = map_base.contourf(lon, lat, data, options.levels, latlon=True, cmap=colour_map, extend="both")
     elif options.min is not None and options.max is not None and options.levels is not None:
-        levels = np.linspace(options.min, options.max, options.levels)
+        levels = np.linspace(options.min, options.max, options.levels[0])
         plot = map_base.contourf(lon, lat, data, levels, latlon=True, cmap=colour_map, extend="both")
     else:
         plot = map_base.contourf(lon, lat, data, latlon=True, cmap=colour_map, extend="both")
@@ -228,7 +235,23 @@ def generate_graph(graph_args):
     # Add a colorbar on the top left. To control the size and position of the colorbar an inset axis is required.
     axins = inset_axes(ax, width='5%', height='50%', loc='lower left', bbox_to_anchor=(0.95, 0.7, 0.6, 0.5),
                        bbox_transform=ax.transAxes, borderpad=0)
-    fig.colorbar(plot, cax=axins, extendrect=True, extendfrac='auto')
+    colorbar = plt.colorbar(plot, cax=axins, extendfrac='auto', extendrect=True)
+    if options.colorbar_ticklabels is not None:
+        colorbar.ax.get_yaxis().set_ticks([])
+        tick_labels = [x.strip() for x in options.colorbar_ticklabels.split(',')]
+        for i, label in enumerate(tick_labels):
+            # Automatically positioning n labels is tricky
+            num_labels = len(tick_labels)
+            y_spread = 0.0091 * num_labels**2 - 0.1744 * num_labels + 0.9749
+            y_offset = -0.0041 * num_labels**2 + 0.0815 * num_labels - 0.4947
+            colorbar.ax.text(
+                COLORBAR_LABELS_X_OFFSET,
+                i * y_spread + y_offset,
+                label,
+                ha='left',
+                va='center',
+                fontproperties=SMALL_FONT
+            )
 
     # Add date of this graph, and title/subtitle/index name if given
     plt.text(.1, .05, date.strftime('%B %Y'), transform=ax.transAxes, fontproperties=REGULAR_FONT)
