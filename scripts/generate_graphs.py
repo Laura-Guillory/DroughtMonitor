@@ -123,6 +123,18 @@ def get_options():
         nargs="+",
         type=float
     )
+    optional.add_argument(
+        '--height',
+        help='Height of desired map domain in projection coordinates (meters). If not provided a default will be '
+             'estimated.',
+        type=int
+    )
+    optional.add_argument(
+        '--width',
+        help='Width of desired map domain in projection coordinates (meters). If not provided a default will be '
+             'estimated.',
+        type=int
+    )
     return parser.parse_args()
 
 
@@ -209,13 +221,17 @@ def generate_graph(graph_args):
     # Set size of the plot and get figure and axes values for later reference
     fig, ax = plt.subplots(figsize=[7, 7])
     # Use custom shapefile if provided, otherwise use default Basemap. This prepares the graph for plotting.
+    resolution = None if options.shape else 'f'
+    if options.width and options.height:
+        map_base = Basemap(resolution=resolution, projection='lcc', lon_0=lon.mean(), lat_0=lat.mean(),
+                           width=options.width, height=options.height, area_thresh=500, ax=ax)
+    else:
+        map_base = Basemap(resolution=resolution, projection='lcc', lon_0=lon.mean(), lat_0=lat.mean(),
+                           llcrnrlat=lat.min(), llcrnrlon=lon.min(), urcrnrlat=lat.max(), urcrnrlon=lon.max(),
+                           area_thresh=500, ax=ax)
     if options.shape:
-        map_base = Basemap(resolution=None, llcrnrlon=lon.min(), llcrnrlat=lat.min(), urcrnrlon=lon.max(),
-                           urcrnrlat=lat.max(), area_thresh=500, ax=ax)
         map_base.readshapefile(options.shape, 'Australia', linewidth=0.4)
     else:
-        map_base = Basemap(resolution='f', llcrnrlon=lon.min(), llcrnrlat=lat.min(), urcrnrlon=lon.max(),
-                           urcrnrlat=lat.max(), area_thresh=500, ax=ax)
         map_base.drawcoastlines(linewidth=0.4)
 
     # No border for this graph
