@@ -258,8 +258,8 @@ def generate_graph(graph_args):
         for i, label in enumerate(tick_labels):
             # Automatically positioning n labels is tricky
             num_labels = len(tick_labels)
-            y_spread = 0.0091 * num_labels**2 - 0.1744 * num_labels + 0.9749
-            y_offset = -0.0041 * num_labels**2 + 0.0815 * num_labels - 0.4947
+            y_spread = -0.0003 * num_labels**3 + 0.0139 * num_labels**2 - 0.1986 * num_labels + 1.0133
+            y_offset = -0.0033 * num_labels**2 + 0.0733 * num_labels - 0.4751
             colorbar.ax.text(
                 COLORBAR_LABELS_X_OFFSET,
                 i * y_spread + y_offset,
