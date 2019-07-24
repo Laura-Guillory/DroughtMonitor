@@ -157,6 +157,7 @@ def generate_all_graphs(options):
         start_date = datetime.strptime(options.start_date, '%Y-%m').date() if options.start_date else None
         end_date = datetime.strptime(options.end_date, '%Y-%m').date() if options.end_date else None
         graph_data = []
+        dataset = dataset.dropna('time', how='all')  # Drop all empty slices
 
         for date, data_slice in dataset[options.var_name].groupby('time'):
             # Skip this image if it's not between the start_date and end_date
