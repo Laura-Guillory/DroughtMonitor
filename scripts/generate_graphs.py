@@ -7,6 +7,7 @@ from datetime import datetime
 from multiprocessing import Pool
 from matplotlib.font_manager import FontProperties
 import xarray
+from colormaps import get_colormap
 import matplotlib
 matplotlib.use('TkAgg')
 from matplotlib import pyplot as plt, cm
@@ -239,7 +240,9 @@ def generate_graph(graph_args):
 
     # Plot the data on the map
     lon, lat = np.meshgrid(lon, lat)
-    colour_map = cm.get_cmap(options.colormap)
+    colour_map = get_colormap(options.colormap)
+    if colour_map is None:
+        colour_map = cm.get_cmap(options.colormap)
     if options.levels is not None and len(options.levels) > 1:
         plot = map_base.contourf(lon, lat, data, options.levels, latlon=True, cmap=colour_map, extend="both")
     elif options.min is not None and options.max is not None and options.levels is not None:
