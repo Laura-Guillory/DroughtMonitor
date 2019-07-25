@@ -51,14 +51,14 @@ Arguments:
 | --path             | Determines where the input files can be found. Defaults to data/{dataset}/{year}.{dataset}.nc. Output will be saved in the same directory as 'full_{dataset}.nc'                                                                |
 | --datasets         | Which datasets to prepare. This argument is required. Accepts multiple arguments. Check DOWNLOADED_DATASETS and COMPUTED_DATASETS inside script to see options for this argument.
 
-### generate_graphs.py
+### generate_maps.py
 
-This tool accepts a netCDF file of georeferenced data as input and generates visual graphs from that data. It generates
-one graph per time slice. Graphs will have a colour bar legend with a customisable colour bar label, main title, and
-subtitle. Graphs will be saved in a directory defined by the `output_file_base` option.
+This tool accepts a netCDF file of georeferenced data as input and generates visual maps from that data. It generates
+one map per time slice. Maps will have a colour bar legend with a customisable colour bar label, main title, and
+subtitle. Maps will be saved in a directory defined by the `output_file_base` option.
 
 ```
-Usage: python generate_graphs.py --netcdf NETCDF_PATH --var_name VAR_NAME --output_file_base OUTPUT_FILE_BASE
+Usage: python generate_maps.py --netcdf NETCDF_PATH --var_name VAR_NAME --output_file_base OUTPUT_FILE_BASE
 ```
 
 Required arguments:  
@@ -75,16 +75,16 @@ Optional arguments:
 |------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | -o, --overwrite       | Existing images will be overwritten. Default behavior is to skip existing images.                                                                                                                                                                                              |
 | --shape               | The path of an optional shape file to use for the base map, such as from [gadm.org](https://gadm.org/). If not provided, a default will be provided.                                                                                                                           |
-| --start_date          | This tool will only produce graphs for dates between start_date and end_date. Dates should be given in the format of 2017-08. Both start_date and end_date arguments must be present for this to work. If this option  isn't used, default behavior is to generate all graphs. |
+| --start_date          | This tool will only produce maps for dates between start_date and end_date. Dates should be given in the format of 2017-08. Both start_date and end_date arguments must be present for this to work. If this option  isn't used, default behavior is to generate all maps. |
 | --end_date            | See --start_date                                                                                                                                                                                                                                                               |
-| --title               | Sets the graph's title on the lower left. |
-| --subtitle            | Sets the graph's subtitle on the lower left |
-| --colormap            | The color map of the graph. See [Matlib's Colormaps](https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html) for options. |
+| --title               | Sets the map's title on the lower left. |
+| --subtitle            | Sets the map's subtitle on the lower left |
+| --colormap            | The color scheme of the image. See [Matlib's Colormaps](https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html) for options. |
 | --colorbar_label      | The label above the colorbar legend (usually an abbreviation of the index name) |
 | --colorbar_ticklabels | Optional setting to replace numbers on the colorbar legend with labels. Example: "dry, normal, wet". There should be 1 more label than the number of levels. |
-| --min                 | The minimum level for the plotted variable shown in the graph and colorbar. |
-| --max                 | The maximum level for the plotted variable shown in the graph and colorbar. |
-| --levels              | If one number is given, it is the number of levels for the plotted variable shown in the graph and colorbar. If multiple numbers are given, they will be used as a list to explicitly set each level. Example: 8, or 0 1 2 3 4 5 6 7 |
+| --min                 | The minimum level for the plotted variable shown in the map and colorbar. |
+| --max                 | The maximum level for the plotted variable shown in the map and colorbar. |
+| --levels              | If one number is given, it is the number of levels for the plotted variable shown in the map and colorbar. If multiple numbers are given, they will be used as a list to explicitly set each level. Example: 8, or 0 1 2 3 4 5 6 7 |
 
 ### truncate_time_dim.py
 
