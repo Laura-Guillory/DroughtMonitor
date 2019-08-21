@@ -55,7 +55,8 @@ Arguments:
 
 This tool accepts a netCDF file of georeferenced data as input and generates visual maps from that data. It generates
 one map per time slice. Maps will have a colour bar legend with a customisable colour bar label, main title, and
-subtitle. Maps will be saved in a directory defined by the `output_file_base` option.
+subtitle. Maps will be saved in a directory defined by the `output_file_base` option. Areas with NaN values will be
+greyed out.
 
 ```
 Usage: python generate_maps.py --netcdf NETCDF_PATH --var_name VAR_NAME --output_file_base OUTPUT_FILE_BASE

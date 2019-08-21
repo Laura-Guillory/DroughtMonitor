@@ -8,6 +8,7 @@ from multiprocessing import Pool
 from matplotlib.font_manager import FontProperties
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import Polygon
+from astropy.convolution import convolve, Gaussian2DKernel
 import xarray
 from colormaps import get_colormap
 import matplotlib
@@ -236,12 +237,12 @@ def generate_map(map_args):
     # Continent outline
     if options.shape:
         map_base.readshapefile(options.shape, 'Australia', linewidth=0.4)
+        # Grey background
+        patches = [Polygon(np.array(shape), True) for info, shape in zip(map_base.Australia_info, map_base.Australia)]
+        ax.add_collection(PatchCollection(patches, facecolor='#afafaf'))
     else:
         map_base.drawcoastlines(linewidth=0.4)
-
-    # Grey background
-    patches = [Polygon(np.array(shape), True) for info, shape in zip(map_base.Australia_info, map_base.Australia)]
-    ax.add_collection(PatchCollection(patches, facecolor='#afafaf'))
+        map_base.fillcontinents(color='#afafaf')
 
     # No border for this map
     plt.axis('off')
@@ -250,6 +251,9 @@ def generate_map(map_args):
     colour_map = get_colormap(options.colormap)
     if colour_map is None:
         colour_map = cm.get_cmap(options.colormap)
+
+    # Smooth contours on map
+    data = convolve(data, Gaussian2DKernel(x_stddev=2), boundary='extend', preserve_nan=True)
 
     # Plot the data on the map
     lon, lat = np.meshgrid(lon, lat)
@@ -260,8 +264,6 @@ def generate_map(map_args):
         plot = map_base.contourf(lon, lat, data, levels, latlon=True, cmap=colour_map, extend="both")
     else:
         plot = map_base.contourf(lon, lat, data, latlon=True, cmap=colour_map, extend="both")
-
-    plt.pcolor
 
     # Add a colorbar on the top left. To control the size and position of the colorbar an inset axis is required.
     axins = inset_axes(ax, width='5%', height='50%', loc='lower left', bbox_to_anchor=(0.95, 0.7, 0.6, 0.5),
