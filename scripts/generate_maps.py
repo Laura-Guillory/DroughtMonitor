@@ -21,6 +21,7 @@ TITLE_FONT = FontProperties(fname='fonts/Roboto-Medium.ttf', size=14)
 SUBTITLE_FONT = FontProperties(fname='fonts/Roboto-LightItalic.ttf', size=12)
 REGULAR_FONT = FontProperties(fname='fonts/Roboto-Light.ttf', size=13)
 SMALL_FONT = FontProperties(fname='fonts/Roboto-Light.ttf', size=10)
+OVERLAY_FONT = FontProperties(fname='fonts/Roboto-Medium.ttf', size=80)
 
 COLORBAR_LABELS_X_OFFSET = 1.3
 
@@ -138,6 +139,11 @@ def get_options():
         help='Width of desired map domain in projection coordinates (meters). If not provided a default will be '
              'estimated.',
         type=int
+    )
+    optional.add_argument(
+        '-p', '--prototype',
+        action='store_true',
+        help='Adds an overlay to the image labelling it as a prototype.'
     )
     return parser.parse_args()
 
@@ -294,6 +300,11 @@ def generate_map(map_args):
         plt.text(.1, .15, date.strftime(options.subtitle), transform=ax.transAxes, fontproperties=SUBTITLE_FONT)
     if options.colorbar_label:
         axins.set_title(options.colorbar_label, fontproperties=REGULAR_FONT)
+
+    # Add prototype overlay if requested
+    if options.prototype:
+        plt.text(0.5, 0.5, "PROTOTYPE", transform=ax.transAxes, alpha=.15, fontproperties=OVERLAY_FONT,
+                 horizontalalignment='center', verticalalignment='center')
 
     # Save map
     plt.savefig(file_path, dpi=150, bbox_inches='tight', quality=80)
