@@ -145,6 +145,11 @@ def get_options():
         action='store_true',
         help='Adds an overlay to the image labelling it as a prototype.'
     )
+    optional.add_argument(
+        '--no_data',
+        action='store_true',
+        help='Adds a No Data portion to the colorbar legend. Use if blank areas are common on this type of map.'
+    )
     return parser.parse_args()
 
 
@@ -283,14 +288,19 @@ def generate_map(map_args):
             num_labels = len(tick_labels)
             y_spread = -0.0003 * num_labels**3 + 0.0139 * num_labels**2 - 0.1986 * num_labels + 1.0133
             y_offset = -0.0033 * num_labels**2 + 0.0733 * num_labels - 0.4751
-            colorbar.ax.text(
-                COLORBAR_LABELS_X_OFFSET,
-                i * y_spread + y_offset,
-                label,
-                ha='left',
-                va='center',
-                fontproperties=SMALL_FONT
-            )
+            colorbar.ax.text(COLORBAR_LABELS_X_OFFSET, i * y_spread + y_offset, label, ha='left', va='center',
+                             fontproperties=SMALL_FONT)
+
+    # Add extra colorbar segment for no data if required
+    if options.no_data:
+        nodata_axins = inset_axes(ax, width='5%', height = '50%', loc='lower left',
+                                  bbox_to_anchor=(0.95, 0.65, 0.6, 0.05), bbox_transform=ax.transAxes, borderpad=0)
+        nodata_cmap = matplotlib.colors.ListedColormap(['#afafaf'])
+        nodata_colorbar = matplotlib.colorbar.ColorbarBase(nodata_axins, cmap=nodata_cmap, extend='neither',
+                                                           ticks=[1, 2])
+        nodata_colorbar.ax.get_yaxis().set_ticks([])
+        nodata_colorbar.ax.text(COLORBAR_LABELS_X_OFFSET, 0.5, 'No data', ha='left', va='center',
+                                fontproperties=SMALL_FONT)
 
     # Add date of this map, and title/subtitle/index name if given
     plt.text(.1, .05, date.strftime('%B %Y'), transform=ax.transAxes, fontproperties=REGULAR_FONT)
