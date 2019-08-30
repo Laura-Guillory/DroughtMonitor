@@ -238,10 +238,10 @@ def generate_map(map_args):
     fig, ax = plt.subplots(figsize=[7, 7])
     # Use custom shapefile if provided, otherwise use default Basemap. This prepares the map for plotting.
     if options.width and options.height:
-        map_base = Basemap(resolution='f', projection='lcc', lon_0=lon.mean(), lat_0=lat.mean(),
+        map_base = Basemap(resolution='l', projection='lcc', lon_0=lon.mean(), lat_0=lat.mean(),
                            width=options.width, height=options.height, area_thresh=500, ax=ax)
     else:
-        map_base = Basemap(resolution='f', projection='lcc', lon_0=lon.mean(), lat_0=lat.mean(),
+        map_base = Basemap(resolution='l', projection='lcc', lon_0=lon.mean(), lat_0=lat.mean(),
                            llcrnrlat=lat.min(), llcrnrlon=lon.min(), urcrnrlat=lat.max(), urcrnrlon=lon.max(),
                            area_thresh=500, ax=ax)
 
@@ -252,8 +252,9 @@ def generate_map(map_args):
         patches = [Polygon(np.array(shape), True) for info, shape in zip(map_base.Australia_info, map_base.Australia)]
         ax.add_collection(PatchCollection(patches, facecolor='#afafaf'))
     else:
-        map_base.drawcoastlines(linewidth=0.4)
-        map_base.fillcontinents(color='#afafaf')
+        map_base.drawcoastlines(linewidth=0.5)
+        map_base.drawstates(linewidth=0.5)
+        map_base.fillcontinents(color='#afafaf', zorder=0)
 
     # No border for this map
     plt.axis('off')

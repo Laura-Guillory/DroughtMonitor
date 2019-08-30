@@ -10,3 +10,4 @@ pyproj
 proj4
 geos
 astropy
+rasterio
