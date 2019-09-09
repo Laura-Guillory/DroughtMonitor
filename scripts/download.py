@@ -39,8 +39,10 @@ def main():
         if dataset == 'ndvi':
             for year in range(1992, current_year + 1):
                 for month in range(1, 13):
-                    destination = path.format(dataset=dataset, date='{y}-{m:02d}'.format(y=year, m=month), filetype='Z')
-                    date_range = '{y}{m:02d}01{y}{m:02d}{d}'.format(y=year, m=month, d=calendar.monthrange(year, month)[1])
+                    destination = path.format(dataset=dataset, date='{y}-{m:02d}'.format(y=year, m=month),
+                                              filetype='txt.Z')
+                    date_range = '{y}{m:02d}01{y}{m:02d}{d}'.format(y=year, m=month,
+                                                                    d=calendar.monthrange(year, month)[1])
                     url = DOWNLOAD_URLS['NDVI'].format(date_range=date_range)
                     try_to_download(url, destination, year)
         else:
@@ -64,7 +66,7 @@ def try_to_download(url, destination, year):
     urllib.request.install_opener(opener)
     while remaining_download_tries > 0:
         try:
-            urllib.request.urlretrieve(url, destination, )
+            urllib.request.urlretrieve(url, destination)
             return
         except (HTTPError, ValueError) as e:
             print('URL does not exist: ' + url)

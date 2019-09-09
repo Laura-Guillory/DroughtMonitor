@@ -1,17 +1,18 @@
 import xarray
-from dask.diagnostics import ProgressBar
 import argparse
 import os
 from datetime import datetime
 from scripts.truncate_time_dim import truncate_time_dim
+from utils.save_to_netcdf import save_to_netcdf
+import glob
+import subprocess
 
 DOWNLOADED_DATASETS = ['daily_rain', 'et_morton_actual', 'et_morton_potential', 'et_morton_wet', 'et_short_crop',
                        'et_tall_crop', 'evap_morton_lake', 'evap_pan', 'evap_syn', 'max_temp', 'min_temp',
-                       'monthly_rain', 'mslp', 'radiation', 'rh_tmax', 'vp', 'vp_deficit']
+                       'monthly_rain', 'mslp', 'radiation', 'rh_tmax', 'vp', 'vp_deficit', 'ndvi']
+ASCII_DATASETS = ['ndvi']
 COMPUTED_DATASETS = ['avg_temp', 'monthly_avg_temp', 'monthly_et_short_crop']
-DEFAULT_PATH = 'data/{dataset}/{year}.{dataset}.nc'
-
-file_path = ''
+DEFAULT_PATH = 'data/{dataset}/{year}.{dataset}.{filetype}'
 
 
 def main():
@@ -20,10 +21,10 @@ def main():
     options = get_options()
     for dataset_name in options.datasets:
         # Create folder for results
-        os.makedirs(os.path.dirname(options.path.format(dataset=dataset_name, year='')), exist_ok=True)
-        if dataset_name in COMPUTED_DATASETS:
-            continue
-        else:
+        os.makedirs(os.path.dirname(options.path.format(dataset=dataset_name, year='', filetype='-')), exist_ok=True)
+        if dataset_name in ASCII_DATASETS:
+            ascii_2_netcdf(dataset_name, options.path)
+        elif dataset_name not in COMPUTED_DATASETS:
             merge_years(dataset_name, options.path)
     if 'avg_temp' in options.datasets:
         calc_avg_temp(options.path)
@@ -82,7 +83,7 @@ def calc_avg_temp(file_path):
         # Dimensions must be in this order to be accepted by the climate indices tool
         dataset = dataset.transpose('lat', 'lon', 'time')
         output_file_path = get_merged_dataset_path(file_path, 'avg_temp')
-        save_to_disk(dataset, output_file_path)
+        save_to_netcdf(dataset, output_file_path)
 
 
 def calc_monthly_avg_temp(file_path):
@@ -94,7 +95,7 @@ def calc_monthly_avg_temp(file_path):
         monthly_avg = truncate_time_dim(monthly_avg)
         monthly_avg['avg_temp'].attrs['units'] = dataset.avg_temp.units
         output_file_path = get_merged_dataset_path(file_path, 'monthly_avg_temp')
-        save_to_disk(monthly_avg, output_file_path)
+        save_to_netcdf(monthly_avg, output_file_path)
 
 
 def calc_monthly_et_short_crop(file_path):
@@ -106,32 +107,45 @@ def calc_monthly_et_short_crop(file_path):
         monthly_et = truncate_time_dim(monthly_et)
         monthly_et['et_short_crop'].attrs['units'] = dataset.et_short_crop.units
         output_file_path = get_merged_dataset_path(file_path, 'monthly_et_short_crop')
-        save_to_disk(monthly_et, output_file_path)
+        save_to_netcdf(monthly_et, output_file_path)
 
 
 def merge_years(dataset_name, file_path):
     output_path = get_merged_dataset_path(file_path, dataset_name)
-    inputs_path = file_path.format(dataset=dataset_name, year='*')
+    inputs_path = file_path.format(dataset=dataset_name, year='*', filetype='nc')
     with xarray.open_mfdataset(inputs_path) as dataset:
         # Dimensions must be in this order to be accepted by the climate indices tool
         dataset = dataset.drop('crs').transpose('lat', 'lon', 'time')
-        save_to_disk(dataset, output_path, encoding={'time': {'units': 'days since 1889-01', 'dtype': 'int64'}})
-
-
-def save_to_disk(dataset, file_path, encoding=None):
-    print('Saving: ' + file_path)
-    if not encoding:
-        encoding = {}
-    for key in dataset.keys():
-        encoding[key] = {'zlib': True}
-    delayed_obj = dataset.to_netcdf(file_path, compute=False, format='NETCDF4', engine='netcdf4',
-                                    unlimited_dims='time', encoding=encoding)
-    with ProgressBar():
-        delayed_obj.compute()
+        save_to_netcdf(dataset, output_path, encoding={'time': {'units': 'days since 1889-01', 'dtype': 'int64'}})
 
 
 def get_merged_dataset_path(file_path, dataset_name):
-    return os.path.dirname(file_path.format(dataset=dataset_name, year='')) + '/full_' + dataset_name + '.nc'
+    return os.path.dirname(file_path.format(dataset=dataset_name, year='', filetype='a')) + '/full_' + dataset_name + '.nc'
+
+
+def ascii_2_netcdf(dataset_name, file_path):
+    # Unzip all files
+    input_paths = glob.glob(file_path.format(dataset=dataset_name, year='*', filetype='txt.Z'))
+    for path in input_paths:
+        with open(path, 'rb') as zipped_file:
+            command = 'C:/Program Files/7-Zip/7z.exe' if os.name == 'nt' else '7z'
+            subprocess.call([command, 'e', path, '-o' + os.path.dirname(path), '-y'], stdout=open(os.devnull, 'w'),
+                            stderr=subprocess.STDOUT, close_fds=True)
+    # Convert files to netcdf
+    dates = []
+    input_paths = glob.glob(file_path.format(dataset=dataset_name, year='*', filetype='txt'))
+    for path in input_paths:
+        file_name = path.split('\\')[-1]
+        date = file_name.split('.')[0]
+        datetime_object = datetime.strptime(date, '%Y-%m')
+        dates.append(datetime_object)
+    time_dim = xarray.Variable('time', dates)
+    data_array = xarray.concat([xarray.open_rasterio(f) for f in input_paths], dim=time_dim)
+    dataset = data_array.to_dataset(name='ndvi').squeeze(drop=True).rename({'x': 'longitude', 'y': 'latitude'})
+    dataset = dataset.where(dataset.ndvi != 99999.9)
+    # Save as one file
+    output_file_path = get_merged_dataset_path(file_path, dataset_name)
+    save_to_netcdf(dataset, output_file_path)
 
 
 if __name__ == '__main__':
