@@ -3,7 +3,7 @@ import argparse
 import os
 from datetime import datetime
 from scripts.truncate_time_dim import truncate_time_dim
-from utils.save_to_netcdf import save_to_netcdf
+from utils.netcdf_saver import NetCDFSaver
 import glob
 import subprocess
 
@@ -13,6 +13,8 @@ DOWNLOADED_DATASETS = ['daily_rain', 'et_morton_actual', 'et_morton_potential', 
 ASCII_DATASETS = ['ndvi']
 COMPUTED_DATASETS = ['avg_temp', 'monthly_avg_temp', 'monthly_et_short_crop']
 DEFAULT_PATH = 'data/{dataset}/{year}.{dataset}.{filetype}'
+
+# todo: consistently truncate dates
 
 
 def main():
@@ -83,7 +85,7 @@ def calc_avg_temp(file_path):
         # Dimensions must be in this order to be accepted by the climate indices tool
         dataset = dataset.transpose('lat', 'lon', 'time')
         output_file_path = get_merged_dataset_path(file_path, 'avg_temp')
-        save_to_netcdf(dataset, output_file_path)
+        NetCDFSaver().save(dataset, output_file_path)
 
 
 def calc_monthly_avg_temp(file_path):
@@ -95,7 +97,7 @@ def calc_monthly_avg_temp(file_path):
         monthly_avg = truncate_time_dim(monthly_avg)
         monthly_avg['avg_temp'].attrs['units'] = dataset.avg_temp.units
         output_file_path = get_merged_dataset_path(file_path, 'monthly_avg_temp')
-        save_to_netcdf(monthly_avg, output_file_path)
+        NetCDFSaver().save(monthly_avg, output_file_path)
 
 
 def calc_monthly_et_short_crop(file_path):
@@ -107,7 +109,7 @@ def calc_monthly_et_short_crop(file_path):
         monthly_et = truncate_time_dim(monthly_et)
         monthly_et['et_short_crop'].attrs['units'] = dataset.et_short_crop.units
         output_file_path = get_merged_dataset_path(file_path, 'monthly_et_short_crop')
-        save_to_netcdf(monthly_et, output_file_path)
+        NetCDFSaver().save(monthly_et, output_file_path)
 
 
 def merge_years(dataset_name, file_path):
@@ -116,7 +118,8 @@ def merge_years(dataset_name, file_path):
     with xarray.open_mfdataset(inputs_path) as dataset:
         # Dimensions must be in this order to be accepted by the climate indices tool
         dataset = dataset.drop('crs').transpose('lat', 'lon', 'time')
-        save_to_netcdf(dataset, output_path, encoding={'time': {'units': 'days since 1889-01', 'dtype': 'int64'}})
+        encoding = {'time': {'units': 'days since 1889-01', 'dtype': 'int64'}}
+        NetCDFSaver().save(dataset, output_path, encoding=encoding)
 
 
 def get_merged_dataset_path(file_path, dataset_name):
@@ -141,11 +144,12 @@ def ascii_2_netcdf(dataset_name, file_path):
         dates.append(datetime_object)
     time_dim = xarray.Variable('time', dates)
     data_array = xarray.concat([xarray.open_rasterio(f) for f in input_paths], dim=time_dim)
-    dataset = data_array.to_dataset(name='ndvi').squeeze(drop=True).rename({'x': 'longitude', 'y': 'latitude'})
-    dataset = dataset.where(dataset.ndvi != 99999.9)
+    dataset = data_array.to_dataset(name=dataset_name).squeeze(drop=True).rename({'x': 'longitude', 'y': 'latitude'})
+    dataset = dataset.where(dataset[dataset_name] != 99999.9)
+    dataset['longitude'].attrs['units'] = 'degrees_east'  # todo: correct attributes and units for ndvi
     # Save as one file
     output_file_path = get_merged_dataset_path(file_path, dataset_name)
-    save_to_netcdf(dataset, output_file_path)
+    NetCDFSaver().save(dataset, output_file_path)
 
 
 if __name__ == '__main__':

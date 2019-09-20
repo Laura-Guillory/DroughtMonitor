@@ -3,7 +3,7 @@ import xarray
 import numpy
 from datetime import datetime
 import os
-from utils import save_to_netcdf
+from utils.netcdf_saver import NetCDFSaver
 
 
 def main():
@@ -15,13 +15,13 @@ def main():
     result = truncate_time_dim(dataset)
 
     if options.output and options.output != options.input:
-        save_to_netcdf(result, options.output)
+        NetCDFSaver().save(result, options.output)
     else:
         # xarray uses lazy loading from disk so overwriting the input file isn't possible without forcing a full load
         # into memory, which is infeasible with large datasets. Instead, save to a temp file, then remove the original
         # and rename the temp file to the original. As a bonus, this is atomic.
         temp_filename = options.input + '_temp'
-        save_to_netcdf(result, temp_filename)
+        NetCDFSaver().save(result, temp_filename)
         dataset.close()
         os.remove(options.input)
         os.rename(temp_filename, options.input)

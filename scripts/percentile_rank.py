@@ -6,9 +6,10 @@ import scipy.stats
 import logging
 import numpy
 import calendar
-from utils.save_to_netcdf import save_to_netcdf
+from utils.netcdf_saver import NetCDFSaver
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
+logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
+LOGGER = logging.getLogger()
 
 """
 Percentile ranks data for a netCDF file. Designed for climate data with time, longitude and latitude dimensions (in no
@@ -24,31 +25,31 @@ class NoDataException(Exception):
 
 
 def main():
-    start_time = datetime.now()
-    print('Starting time: ' + str(start_time))
-
     options = get_options()
+    LOGGER.setLevel(options.verbose)
+    start_time = datetime.now()
+    LOGGER.info('Starting time: ' + str(start_time))
     dataset = xarray.open_dataset(options.input)
     lon, lat = get_lon_lat_names(dataset)
     dataset.chunk({lon: 20, lat: 20})
     result = percentile_rank(dataset, options, lon, lat)
 
     if options.output and options.output is not options.input:
-        save_to_netcdf(result, options.output)
+        NetCDFSaver(LOGGER, options.verbose).save(result, options.output)
     else:
         # xarray uses lazy loading from disk so overwriting the input file isn't possible without forcing a full load
         # into memory, which is infeasible with large datasets. Instead, save to a temp file, then remove the original
         # and rename the temp file to the original.
         temp_filename = options.output + '_temp'
-        save_to_netcdf(result, options.output)
+        NetCDFSaver(LOGGER, options.verbose).save(result, temp_filename)
         dataset.close()
         os.remove(options.input)
         os.rename(temp_filename, options.output)
 
     end_time = datetime.now()
-    print('End time: ' + str(end_time))
+    LOGGER.info('End time: ' + str(end_time))
     elapsed_time = end_time - start_time
-    print('Elapsed time: ' + str(elapsed_time))
+    LOGGER.info('Elapsed time: ' + str(elapsed_time))
 
 
 def get_options():
@@ -57,7 +58,7 @@ def get_options():
     Options are accessed via options.input, options.output, etc.
 
     Required arguments: input
-    Optional arguments: output, vars
+    Optional arguments: output, vars, verbose (v)
 
     Run this with the -h (help) argument for more detailed information. (python percentile_rank.py -h)
 
@@ -76,6 +77,13 @@ def get_options():
     parser.add_argument(
         '--vars',
         help='Which variables in the file to percentile rank. If not present, will rank all variables found.'
+    )
+    parser.add_argument(
+        '-v', '--verbose',
+        help='Increase output verbosity',
+        action='store_const',
+        const=logging.INFO,
+        default=logging.WARN
     )
     args = parser.parse_args()
     if not args.output:
@@ -132,7 +140,7 @@ def calc_percentiles_for_month(dataarray):
     :return: The percentile ranked dataarray
     """
     month = calendar.month_name[dataarray['time'].values[0].astype('datetime64[M]').astype(int) % 12 + 1]
-    logging.info('Calculating percentiles for ' + month)
+    LOGGER.info('Calculating percentiles for ' + month)
     return dataarray.groupby('loc').apply(calc_percentiles_for_coordinate)
 
 
