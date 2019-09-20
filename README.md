@@ -97,7 +97,8 @@ e.g.
 2018-10-07 -> 2018-10-01  
 2018-11-30 -> 2018-11-01  
 
-This can be useful if you are processing multiple datasets with one entry per month and experiencing issues due to a slight date mismatch.
+This can be useful if you are processing multiple datasets with one entry per month and experiencing issues due to a 
+slight date mismatch.
 
 |||
 |----------|---------------------------------------------------------------------------------------|
@@ -118,6 +119,18 @@ Usage: python transpose.py --input INPUT_PATH --output OUTPUT_PATH --dims DIM_1 
 | --input  | The path of the file to use as input (required)                                       |
 | --output | The location to save the result. If not supplied, the input file will be overwritten. |
 | --dims   | The desired order of the dimensions (example: time lat lon)                           |
+
+### percentile_rank.py
+
+Percentile ranks data for a netCDF file. Designed for climate data with time, longitude and latitude dimensions (in no
+particular order). Each point on the grid is percentile ranked relative to the historical conditions on that month 
+(e.g. 2001 January is ranked against all other Januaries).
+
+|||
+|----------|-----------------------------------------------------------------------------------------|
+| --input  | The path of the file to use as input (required)                                         |
+| --output | The location to save the result. If not supplied, the input file will be overwritten.   |
+| --vars   | The variables in the netCDF file to percentile rank. Will rank all variables by default |
 
 ## Contacts
 

@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 Percentile ranks data for a netCDF file. Designed for climate data with time, longitude and latitude dimensions (in no
 particular order). Each point on the grid is percentile ranked relative to the historical conditions on that month 
 (e.g. 2001 January is ranked against all other Januaries). Will percentile rank all variables in the file by default, 
-or this can be specified manually using --var.
+or this can be specified manually using --vars.
 """
 
 
