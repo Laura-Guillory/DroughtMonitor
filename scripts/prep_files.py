@@ -14,8 +14,6 @@ ASCII_DATASETS = ['ndvi']
 COMPUTED_DATASETS = ['avg_temp', 'monthly_avg_temp', 'monthly_et_short_crop']
 DEFAULT_PATH = 'data/{dataset}/{year}.{dataset}.{filetype}'
 
-# todo: consistently truncate dates
-
 
 def main():
     start_time = datetime.now()
@@ -123,7 +121,8 @@ def merge_years(dataset_name, file_path):
 
 
 def get_merged_dataset_path(file_path, dataset_name):
-    return os.path.dirname(file_path.format(dataset=dataset_name, year='', filetype='a')) + '/full_' + dataset_name + '.nc'
+    merged_file_path = file_path.format(dataset=dataset_name, year='', filetype='a')
+    return os.path.dirname(merged_file_path) + '/full_' + dataset_name + '.nc'
 
 
 def ascii_2_netcdf(dataset_name, file_path):
@@ -146,7 +145,8 @@ def ascii_2_netcdf(dataset_name, file_path):
     data_array = xarray.concat([xarray.open_rasterio(f) for f in input_paths], dim=time_dim)
     dataset = data_array.to_dataset(name=dataset_name).squeeze(drop=True).rename({'x': 'longitude', 'y': 'latitude'})
     dataset = dataset.where(dataset[dataset_name] != 99999.9)
-    dataset['longitude'].attrs['units'] = 'degrees_east'  # todo: correct attributes and units for ndvi
+    dataset['longitude'].attrs['units'] = 'degrees_east'
+    dataset['latitude'].attrs['units'] = 'degrees_north'
     # Save as one file
     output_file_path = get_merged_dataset_path(file_path, dataset_name)
     NetCDFSaver().save(dataset, output_file_path)

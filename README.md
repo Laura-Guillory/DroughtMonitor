@@ -7,6 +7,7 @@ This repository contains Tools for obtaining and processing gridded climate data
 * Python 3
 * Anaconda
 * Install the packages listed in requirements.txt
+* 7zip
 
 Scripts can be found in the `scripts` directory. Please be advised it can take some time to process large volumes of 
 data.
