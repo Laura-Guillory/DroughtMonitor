@@ -148,7 +148,7 @@ def get_options():
     optional.add_argument(
         '--no_data',
         action='store_true',
-        help='Adds a No Data portion to the colorbar legend. Use if blank areas are common on this type of map.'
+        help='Adds a No Data portion to the colorbar legend. Use this if blank areas are common on this type of map.'
     )
     return parser.parse_args()
 

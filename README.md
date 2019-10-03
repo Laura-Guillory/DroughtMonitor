@@ -1,6 +1,6 @@
 # Climate Data Tools
 
-This repository contains Tools for obtaining and processing gridded climate data from [LongPaddock's SILO](https://silo.longpaddock.qld.gov.au/), and other netCDF files.
+This repository contains Tools for obtaining and processing gridded climate data from [LongPaddock's SILO](https://silo.longpaddock.qld.gov.au/), The Bureau of Meteorology [(NDVI)](http://www.bom.gov.au/jsp/awap/ndvi/index.jsp), and other netCDF files.
 
 ## Requirements
 
@@ -35,11 +35,16 @@ delete it before running again.
 
 ### prep_files.py
 
-Prepares files for use in calculations such as [climate indices](https://github.com/monocongo/climate_indices). This 
-consolidates all the files for each year into a single one, and reorders the dimensions into (lat, lon, time). 
+Prepares files for use in calculations such as [climate indices](https://github.com/monocongo/climate_indices). 
+The data downloaded from SILO is split into one file per year, and NDVI data downloaded from the Bureau of 
+Meteorology is split into one file per month. This consolidates each dataset into one file, reorders the 
+dimensions into (lat, lon, time), and truncates each time entry to the beginning of the month.
 
 This script can also calculate an average temperature dataset in both daily and monthly format, as long as minimum and
 maximum temperature datasets are present.
+
+In the case of NDVI datasets (which are downloaded as gridded ASCII files), they will be converted to netCDF before
+being processed.
 
 ```
 Usage: python download.py --path PATH --datasets dataset1 dataset2
@@ -87,6 +92,10 @@ Optional arguments:
 | --min                 | The minimum level for the plotted variable shown in the map and colorbar. |
 | --max                 | The maximum level for the plotted variable shown in the map and colorbar. |
 | --levels              | If one number is given, it is the number of levels for the plotted variable shown in the map and colorbar. If multiple numbers are given, they will be used as a list to explicitly set each level. Example: 8, or 0 1 2 3 4 5 6 7 |
+| --height              | Height of desired map domain in projection coordinates (meters). If not provided a default will be estimated. |
+| --width               | Width of desired map domain in projection coordinates (meters). If not provided a default will be estimated. |
+| -p, --prototype       | Adds an overlay to the image labelling it as a prototype. |
+| --no-data             | Adds a No Data portion to the colorbar legend. Use this if blank areas are common on this type of map. |
 
 ### truncate_time_dim.py
 
