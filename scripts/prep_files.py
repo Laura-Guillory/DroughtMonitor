@@ -116,7 +116,7 @@ def merge_years(dataset_name, file_path):
     with xarray.open_mfdataset(inputs_path, combine='by_coords') as dataset:
         # Dimensions must be in this order to be accepted by the climate indices tool
         dataset = dataset.drop('crs').transpose('lat', 'lon', 'time')
-        encoding = {'time': {'units': 'days since 1889-01', 'dtype': 'int64'}}
+        encoding = {'time': {'units': 'days since 1889-01', '_FillValue': None}}
         save_to_netcdf(dataset, output_path, encoding=encoding)
 
 
