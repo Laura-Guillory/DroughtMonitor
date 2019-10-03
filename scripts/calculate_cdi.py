@@ -38,7 +38,7 @@ def main():
     ranked_files = []
     for dataset_name in [options.ndvi, options.spi, options.et, options.sm]:
         with xarray.open_dataset(dataset_name) as dataset:
-            ranked_dataset = percentile_rank(dataset, logging_level=options.verbose)
+            ranked_dataset = percentile_rank(dataset, logging_level=options.verbose, rank_vars=[dataset_name])
             temp_filepath = dataset_name + '.' + str(os.getpid()) + '.temp'
             save_to_netcdf(ranked_dataset, temp_filepath)
             ranked_files.append(temp_filepath)
