@@ -19,7 +19,7 @@ This script is tailored for NDVI data from the Bureau of Meteorology, but will b
 configured for general purpose use.
 """
 
-DIRECTORY = 'D:/data/NDVI Anomaly'
+DIRECTORY = 'D:/data/NDVI'
 
 file_paths = glob.glob(DIRECTORY + '/*')
 times = []

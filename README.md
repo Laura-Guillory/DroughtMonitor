@@ -142,6 +142,11 @@ particular order). Each point on the grid is percentile ranked relative to the h
 | --output | The location to save the result. If not supplied, the input file will be overwritten.   |
 | --vars   | The variables in the netCDF file to percentile rank. Will rank all variables by default |
 
+### Scratch
+
+Files in here are useful one-off scripts that I haven't had time to turn into robust tools but are too useful to 
+delete. They might be undocumented or broken.
+
 ## Contacts
 
 **Laura Guillory**  
