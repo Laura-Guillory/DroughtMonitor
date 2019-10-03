@@ -2,7 +2,7 @@ import argparse
 import xarray
 from datetime import datetime
 import os
-from utils.netcdf_saver import NetCDFSaver
+from utils import save_to_netcdf
 
 """
 Saves the dimensions of a netCDF file in a different order, because some programs will expect the dimensions to be
@@ -21,13 +21,13 @@ def main():
     result = transpose(dataset, options.dims)
 
     if options.output and not options.output == options.input:
-        NetCDFSaver().save(result, options.output)
+        save_to_netcdf(result, options.output)
     else:
         # xarray uses lazy loading from disk so overwriting the input file isn't possible without forcing a full load
         # into memory, which is infeasible with large datasets. Instead, save to a temp file, then remove the original
         # and rename the temp file to the original. As a bonus, this is atomic.
         temp_filename = options.input + '_temp'
-        NetCDFSaver().save(result, temp_filename)
+        save_to_netcdf(result, temp_filename)
         dataset.close()
         os.remove(options.input)
         os.rename(temp_filename, options.input)
