@@ -5,11 +5,9 @@ import os
 import scipy.stats
 import logging
 import numpy
-import calendar
-from utils.netcdf_saver import NetCDFSaver
-
+from utils import save_to_netcdf
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
-LOGGER = logging.getLogger()
+LOGGER = logging.getLogger(__name__)
 
 """
 Percentile ranks data for a netCDF file. Designed for climate data with time, longitude and latitude dimensions (in no
@@ -30,18 +28,16 @@ def main():
     start_time = datetime.now()
     LOGGER.info('Starting time: ' + str(start_time))
     dataset = xarray.open_dataset(options.input)
-    lon, lat = get_lon_lat_names(dataset)
-    dataset.chunk({lon: 20, lat: 20})
-    result = percentile_rank(dataset, options, lon, lat)
+    result = percentile_rank(dataset, options.vars, options.verbose)
 
     if options.output and options.output is not options.input:
-        NetCDFSaver(LOGGER, options.verbose).save(result, options.output)
+        save_to_netcdf(result, options.output, logging_level=options.verbose)
     else:
         # xarray uses lazy loading from disk so overwriting the input file isn't possible without forcing a full load
         # into memory, which is infeasible with large datasets. Instead, save to a temp file, then remove the original
         # and rename the temp file to the original.
         temp_filename = options.output + '_temp'
-        NetCDFSaver(LOGGER, options.verbose).save(result, temp_filename)
+        save_to_netcdf(result, temp_filename, logging_level=options.verbose)
         dataset.close()
         os.remove(options.input)
         os.rename(temp_filename, options.output)
@@ -91,21 +87,25 @@ def get_options():
     return args
 
 
-def percentile_rank(dataset, options, lon, lat):
+def percentile_rank(dataset, rank_vars=None, logging_level=logging.WARN):
     """
     Percentile ranks variables in the given dataset. If options.var is defined, will rank only those variables.
     Otherwise, will rank all variables found in the dataset.
 
     :param dataset: The dataset to percentile rank
-    :param options: Contains options given via the command line
-    :param lon: The name of the longitude dimension
-    :param lat: The name of the latitude dimension
+    :param rank_vars: Which variables in this dataset to rank
+    :param logging_level: Set the logging level for this function, defaults to WARN
     :return: The percentile ranked dataset
     """
+    LOGGER.setLevel(logging_level)
+    # Get names of lon and lat dimensions
+    lon, lat = get_lon_lat_names(dataset)
+    # Rechunk the data into chunks that will be fastest for this operation.
+    dataset.chunk({lon: 20, lat: 20})
     # Get which variables will be ranked
     # If no options set, all variables will be ranked
-    if options.vars is not None:
-        vars_to_rank = options.vars
+    if rank_vars is not None:
+        vars_to_rank = rank_vars
     else:
         vars_to_rank = list(dataset.keys())
         if len(vars_to_rank) == 0:
@@ -118,6 +118,7 @@ def percentile_rank(dataset, options, lon, lat):
     for var in vars_to_rank:
         # Each January is compared against the Januaries of all the other years to find its percentile rank.
         # Iterates through each month of the year to work on them one at a time.
+        LOGGER.info('Calculating percentiles for variable ' + var.upper())
         dataset[var] = dataset[var].groupby('time.month').apply(calc_percentiles_for_month)
     dataset = dataset.unstack('loc')
     for key in attrs:
@@ -139,8 +140,6 @@ def calc_percentiles_for_month(dataarray):
     :param dataarray: A dataarray sliced to contain only one variable and one month of the year
     :return: The percentile ranked dataarray
     """
-    month = calendar.month_name[dataarray['time'].values[0].astype('datetime64[M]').astype(int) % 12 + 1]
-    LOGGER.info('Calculating percentiles for ' + month)
     return dataarray.groupby('loc').apply(calc_percentiles_for_coordinate)
 
 
