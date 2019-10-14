@@ -6,6 +6,7 @@ import logging
 from percentile_rank import percentile_rank
 from truncate_time_dim import truncate_time_dim
 import os
+import numpy
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -34,12 +35,19 @@ def main():
     start_time = datetime.now()
     LOGGER.info('Starting time: ' + str(start_time))
 
+    input_files = [
+        {'var': options.ndvi_var, 'path': options.ndvi},
+        {'var': options.sm_var, 'path': options.sm},
+        {'var': options.et_var, 'path': options.et},
+        {'var': options.spi_var, 'path': options.spi}
+    ]
+
     # Percentile rank all the input data
     ranked_files = []
-    for dataset_name in [options.ndvi, options.spi, options.et, options.sm]:
-        with xarray.open_dataset(dataset_name) as dataset:
-            ranked_dataset = percentile_rank(dataset, logging_level=options.verbose, rank_vars=[dataset_name])
-            temp_filepath = dataset_name + '.' + str(os.getpid()) + '.temp'
+    for input_file in input_files:
+        with xarray.open_dataset(input_file['path']) as dataset:
+            ranked_dataset = percentile_rank(dataset, logging_level=options.verbose, rank_vars=[input_file['var']])
+            temp_filepath = input_file['path'] + '.' + str(os.getpid()) + '.temp'
             save_to_netcdf(ranked_dataset, temp_filepath)
             ranked_files.append(temp_filepath)
 
@@ -163,6 +171,8 @@ def calc_cdi(dataset, options):
     dataset = dataset.dropna('time', how='all')
     # For some reason latitude becomes a double while longitude remains a float... tidy that up.
     dataset['latitude'] = dataset['latitude'].astype('f4')
+    dataset['latitude'].attrs['units'] = 'degrees_north'
+    dataset['longitude'].attrs['units'] = 'degrees_east'
     return dataset
 
 
