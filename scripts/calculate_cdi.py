@@ -6,7 +6,7 @@ import logging
 from percentile_rank import percentile_rank
 from truncate_time_dim import truncate_time_dim
 import os
-import numpy
+import multiprocessing
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -35,6 +35,13 @@ def main():
     start_time = datetime.now()
     LOGGER.info('Starting time: ' + str(start_time))
 
+    if options.multiprocessing == "single":
+        number_of_worker_processes = 1
+    elif options.multiprocessing == "all":
+        number_of_worker_processes = multiprocessing.cpu_count()
+    else:
+        number_of_worker_processes = multiprocessing.cpu_count() - 1
+
     input_files = [
         {'var': options.ndvi_var, 'path': options.ndvi},
         {'var': options.sm_var, 'path': options.sm},
@@ -43,13 +50,21 @@ def main():
     ]
 
     # Percentile rank all the input data
+    # This is multiprocessed with one dataset per process.
+    # The ranked datasets are stored to temporary files. Otherwise we would need to find a way to share data between
+    # the processes which is not ideal.
     ranked_files = []
+    multiprocess_args = []
     for input_file in input_files:
-        with xarray.open_dataset(input_file['path']) as dataset:
-            ranked_dataset = percentile_rank(dataset, logging_level=options.verbose, rank_vars=[input_file['var']])
-            temp_filepath = input_file['path'] + '.' + str(os.getpid()) + '.temp'
-            save_to_netcdf(ranked_dataset, temp_filepath)
-            ranked_files.append(temp_filepath)
+        temp_filepath = input_file['path'] + '.' + str(os.getpid()) + '.temp'
+        # Save args to be used in the multiprocessing pool below
+        multiprocess_args.append((input_file['path'], temp_filepath, options.verbose, input_file['var']))
+        ranked_files.append(temp_filepath)
+    pool = multiprocessing.Pool(number_of_worker_processes)
+    # Calls percentile_rank_dataset() with each process in the pool, using the arguments saved above
+    pool.map(percentile_rank_dataset, multiprocess_args)
+    pool.close()
+    pool.join()
 
     # Combine the percentile ranked data into a CDI
     with xarray.open_mfdataset(ranked_files, chunks={'time': 20}, preprocess=standardise_dataset, combine='by_coords') \
@@ -65,6 +80,17 @@ def main():
     LOGGER.info('End time: ' + str(end_time))
     elapsed_time = end_time - start_time
     LOGGER.info('Elapsed time: ' + str(elapsed_time))
+
+
+def percentile_rank_dataset(args):
+    """
+    Loads a dataset, percentile ranks it, and saves it back to disk.
+    Can't have arguments directly with multiprocessing, they're packed as a tuple
+    """
+    input_path, output_path, verbosity, var = args
+    with xarray.open_dataset(input_path) as dataset:
+        ranked_dataset = percentile_rank(dataset, logging_level=verbosity, rank_vars=[var])
+        save_to_netcdf(ranked_dataset, output_path, logging_level=verbosity)
 
 
 def standardise_dataset(dataset):
@@ -151,6 +177,13 @@ def get_options():
         const=logging.INFO,
         default=logging.WARN
     )
+    parser.add_argument(
+        '--multiprocessing',
+        help='Number of processes to use in multiprocessing.',
+        choices=["single", "all_but_one", "all"],
+        required=False,
+        default="all_but_one",
+    )
     args = parser.parse_args()
     return args
 
@@ -167,7 +200,11 @@ def calc_cdi(dataset, options):
                      + SPI_WEIGHT * dataset[options.spi_var] \
                      + ET_WEIGHT * (1 - dataset[options.et_var]) \
                      + SM_WEIGHT * dataset[options.sm_var]
-    dataset = dataset.drop([options.ndvi_var, options.spi_var, options.et_var, options.sm_var])
+    keys = dataset.keys()
+    # Drop all input variables and anything else that slipped in, we ONLY want the CDI.
+    for key in keys:
+        if key != 'cdi':
+            dataset = dataset.drop(key)
     dataset = dataset.dropna('time', how='all')
     # For some reason latitude becomes a double while longitude remains a float... tidy that up.
     dataset['latitude'] = dataset['latitude'].astype('f4')

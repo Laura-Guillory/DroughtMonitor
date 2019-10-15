@@ -5,7 +5,7 @@ import os
 import scipy.stats
 import logging
 import numpy
-from utils import save_to_netcdf
+import utils
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
 
@@ -31,13 +31,13 @@ def main():
     result = percentile_rank(dataset, options.vars, options.verbose)
 
     if options.output and options.output is not options.input:
-        save_to_netcdf(result, options.output, logging_level=options.verbose)
+        utils.save_to_netcdf(result, options.output, logging_level=options.verbose)
     else:
         # xarray uses lazy loading from disk so overwriting the input file isn't possible without forcing a full load
         # into memory, which is infeasible with large datasets. Instead, save to a temp file, then remove the original
         # and rename the temp file to the original.
         temp_filename = options.output + '_temp'
-        save_to_netcdf(result, temp_filename, logging_level=options.verbose)
+        utils.save_to_netcdf(result, temp_filename, logging_level=options.verbose)
         dataset.close()
         os.remove(options.input)
         os.rename(temp_filename, options.output)
@@ -99,7 +99,7 @@ def percentile_rank(dataset, rank_vars=None, logging_level=logging.WARN):
     """
     LOGGER.setLevel(logging_level)
     # Get names of lon and lat dimensions
-    lon, lat = get_lon_lat_names(dataset)
+    lon, lat = utils.get_lon_lat_names(dataset)
     # Rechunk the data into chunks that will be fastest for this operation.
     dataset.chunk({lon: 20, lat: 20})
     # Get which variables will be ranked
@@ -161,17 +161,6 @@ def calc_percentiles_for_coordinate(dataarray):
     ranked_array[ranked_array == 0] = numpy.nan
     percentile_array = (ranked_array - 1) / len(dataarray)
     return percentile_array
-
-
-def get_lon_lat_names(dataset):
-    """
-    Try to guess what the longitude and latitude dimensions are called and raise an exception if it doesn't work.
-    """
-    if all([element in dataset.dims for element in ['lon', 'lat']]):
-        return 'lon', 'lat'
-    elif all([element in dataset.dims for element in ['longitude', 'latitude']]):
-        return 'longitude', 'latitude'
-    raise ValueError('Longitude and/or latitude dimensions not found.')
 
 
 if __name__ == '__main__':

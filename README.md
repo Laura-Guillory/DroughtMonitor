@@ -28,7 +28,7 @@ Arguments:
 |--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | --path             | Determines where the data will be saved. Defaults to data/{dataset}/{year}.{dataset}.{filetype}                                                                                                        |
 | --datasets         | Which datasets to download. This argument is required. Accepts multiple arguments. Check DATASET_CHOICES inside script to see options for this argument.                                                                                                                    |
-
+| -v, --verbose      | Increase output verbosity |
 
 If you cancel this script midway through it's likely that the most recent file will be empty/corrupt so you should 
 delete it before running again.
@@ -40,8 +40,8 @@ The data downloaded from SILO is split into one file per year, and NDVI data dow
 Meteorology is split into one file per month. This consolidates each dataset into one file, reorders the 
 dimensions into (lat, lon, time), and truncates each time entry to the beginning of the month.
 
-This script can also calculate an average temperature dataset in both daily and monthly format, as long as minimum and
-maximum temperature datasets are present.
+This script can also calculate an average temperature dataset in monthly format, as long as minimum and maximum 
+temperature datasets are present.
 
 In the case of NDVI datasets (which are downloaded as gridded ASCII files), they will be converted to netCDF before
 being processed.
@@ -56,6 +56,7 @@ Arguments:
 |--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | --path             | Determines where the input files can be found. Defaults to data/{dataset}/{year}.{dataset}.nc. Output will be saved in the same directory as 'full_{dataset}.nc'                                                                |
 | --datasets         | Which datasets to prepare. This argument is required. Accepts multiple arguments. Check DOWNLOADED_DATASETS and COMPUTED_DATASETS inside script to see options for this argument.
+| -v, --verbose      | Increase output verbosity |
 
 ### generate_maps.py
 
@@ -96,6 +97,8 @@ Optional arguments:
 | --width               | Width of desired map domain in projection coordinates (meters). If not provided a default will be estimated. |
 | -p, --prototype       | Adds an overlay to the image labelling it as a prototype. |
 | --no-data             | Adds a No Data portion to the colorbar legend. Use this if blank areas are common on this type of map. |
+| -v, --verbose         | Increase output verbosity |
+| --multiprocessing     | Number of processes to use in multiprocessing. |
 
 ### truncate_time_dim.py
 
@@ -137,10 +140,11 @@ particular order). Each point on the grid is percentile ranked relative to the h
 (e.g. 2001 January is ranked against all other Januaries).
 
 |||
-|----------|-----------------------------------------------------------------------------------------|
-| --input  | The path of the file to use as input (required)                                         |
-| --output | The location to save the result. If not supplied, the input file will be overwritten.   |
-| --vars   | The variables in the netCDF file to percentile rank. Will rank all variables by default |
+|---------------|-----------------------------------------------------------------------------------------|
+| --input       | The path of the file to use as input (required)                                         |
+| --output      | The location to save the result. If not supplied, the input file will be overwritten.   |
+| --vars        | The variables in the netCDF file to percentile rank. Will rank all variables by default |
+| -v, --verbose | Increase output verbosity                                                               |
 
 ### Scratch
 

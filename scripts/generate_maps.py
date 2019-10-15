@@ -1,22 +1,26 @@
 import numpy as np
 import os
-from mpl_toolkits.basemap import Basemap
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import argparse
 from datetime import datetime
-from multiprocessing import Pool
-from matplotlib.font_manager import FontProperties
-from matplotlib.collections import PatchCollection
-from matplotlib.patches import Polygon
+import multiprocessing
 from astropy.convolution import convolve, Gaussian2DKernel
 import xarray
 from colormaps import get_colormap
+import utils
+import logging
+from mpl_toolkits.basemap import Basemap
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import matplotlib
+from matplotlib.font_manager import FontProperties
+from matplotlib.collections import PatchCollection
+from matplotlib.patches import Polygon
 matplotlib.use('TkAgg')
 from matplotlib import pyplot as plt, cm
 
+logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
+LOGGER = logging.getLogger(__name__)
 
-NUM_PROCESSES = 4
+
 TITLE_FONT = FontProperties(fname='fonts/Roboto-Medium.ttf', size=14)
 SUBTITLE_FONT = FontProperties(fname='fonts/Roboto-LightItalic.ttf', size=12)
 REGULAR_FONT = FontProperties(fname='fonts/Roboto-Light.ttf', size=13)
@@ -28,14 +32,23 @@ COLORBAR_LABELS_X_OFFSET = 1.3
 
 def main():
     # Gets options and then generates maps. Records the start time, end time and elapsed time.
-    start_time = datetime.now()
-    print('Starting time: ' + str(start_time))
     options = get_options()
-    generate_all_maps(options)
+    LOGGER.setLevel(options.verbose)
+    start_time = datetime.now()
+    LOGGER.info('Starting time: ' + str(start_time))
+
+    if options.multiprocessing == "single":
+        number_of_worker_processes = 1
+    elif options.multiprocessing == "all":
+        number_of_worker_processes = multiprocessing.cpu_count()
+    else:
+        number_of_worker_processes = multiprocessing.cpu_count() - 1
+
+    generate_all_maps(options, number_of_worker_processes)
     end_time = datetime.now()
-    print('End time: ' + str(end_time))
+    LOGGER.info('End time: ' + str(end_time))
     elapsed_time = end_time - start_time
-    print('Elapsed time: ' + str(elapsed_time))
+    LOGGER.info('Elapsed time: ' + str(elapsed_time))
 
 
 def get_options():
@@ -150,10 +163,24 @@ def get_options():
         action='store_true',
         help='Adds a No Data portion to the colorbar legend. Use this if blank areas are common on this type of map.'
     )
+    parser.add_argument(
+        '-v', '--verbose',
+        help='Increase output verbosity',
+        action='store_const',
+        const=logging.INFO,
+        default=logging.WARN
+    )
+    parser.add_argument(
+        '--multiprocessing',
+        help='Number of processes to use in multiprocessing.',
+        choices=["single", "all_but_one", "all"],
+        required=False,
+        default="all_but_one",
+    )
     return parser.parse_args()
 
 
-def generate_all_maps(options):
+def generate_all_maps(options, number_of_worker_processes):
     """
     Reads data from the netCDF file provided. For each time slice, call generate_map to generate one image.
     Uses multiprocessing with one process per map.
@@ -171,41 +198,27 @@ def generate_all_maps(options):
         start_date = datetime.strptime(options.start_date, '%Y-%m').date() if options.start_date else None
         end_date = datetime.strptime(options.end_date, '%Y-%m').date() if options.end_date else None
         map_data = []
-        dataset = dataset.dropna('time', how='all')  # Drop all empty slices
+
+        # Make sure coordinate dims exist
+        lat, lon = utils.get_lon_lat_names(dataset)
 
         for date, data_slice in dataset[options.var_name].groupby('time'):
+            date = date.astype('<M8[M]').item()
+
             # Skip this image if it's not between the start_date and end_date
-            truncated_date = date.astype('<M8[M]').item()
-            if (start_date and truncated_date < start_date) or (end_date and truncated_date > end_date):
+            if (start_date and date < start_date) or (end_date and date > end_date):
                 continue
 
             # Skip existing images if the user has not chosen to overwrite them.
-            file_path = '{}{}-{:02}.jpg'.format(options.output_file_base, truncated_date.year, truncated_date.month)
+            file_path = '{}{}-{:02}.jpg'.format(options.output_file_base, date.year, date.month)
             if not options.overwrite and os.path.exists(file_path):
                 continue
 
-            # Make sure coordinate dims exist
-            if 'lat' in dataset.dims:
-                lat = dataset.variables['lat']
-            elif 'latitude' in dataset.dims:
-                lat = dataset.variables['latitude']
-            else:
-                print('No latitude dimension found.')
-                return
-
-            if 'lon' in dataset.dims:
-                lon = dataset.variables['lon']
-            elif 'longitude' in dataset.dims:
-                lon = dataset.variables['longitude']
-            else:
-                print('No longitude dimension found.')
-                return
-
             # Add to list of images to be generated
-            map_data.append((data_slice, lat, lon, options, file_path, truncated_date))
+            map_data.append((data_slice, lat, lon, options, file_path, date))
 
     # Multiprocessing - one process per time slice
-    pool = Pool(NUM_PROCESSES)
+    pool = multiprocessing.Pool(number_of_worker_processes)
     pool.map(generate_map, map_data)
     pool.close()
     pool.join()
