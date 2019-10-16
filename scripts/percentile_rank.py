@@ -2,10 +2,9 @@ import argparse
 import xarray
 from datetime import datetime
 import os
-import scipy.stats
 import logging
-import numpy
 import utils
+
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
 
@@ -101,7 +100,7 @@ def percentile_rank(dataset, rank_vars=None, logging_level=logging.WARN):
     # Get names of lon and lat dimensions
     lon, lat = utils.get_lon_lat_names(dataset)
     # Rechunk the data into chunks that will be fastest for this operation.
-    dataset.chunk({lon: 20, lat: 20})
+    dataset.chunk({lon: 100, lat: 100})
     # Get which variables will be ranked
     # If no options set, all variables will be ranked
     if rank_vars is not None:
@@ -111,56 +110,49 @@ def percentile_rank(dataset, rank_vars=None, logging_level=logging.WARN):
         if len(vars_to_rank) == 0:
             raise NoDataException('This file does not contain any rankable variables.')
 
-    # Groups lon and lat into 'loc' to apply the calculation to each unique coordinate
     # Using groupby.apply() on a stacked object loses all its attributes, save them to reapply after
     attrs = {var: dataset[var].attrs for var in set(dataset.keys()).union(set(dataset.dims))}
-    dataset = dataset.stack(loc=[lat, lon])
     for var in vars_to_rank:
         # Each January is compared against the Januaries of all the other years to find its percentile rank.
         # Iterates through each month of the year to work on them one at a time.
         LOGGER.info('Calculating percentiles for variable ' + var.upper())
-        dataset[var] = dataset[var].groupby('time.month').apply(calc_percentiles_for_month)
-    dataset = dataset.unstack('loc')
+        # We convert the data to a Pandas dataframe to do the operation and then convert back to an xarray Dataset
+        # because Pandas is much faster with groupby() operations.
+        dataframe = dataset[var].to_dataframe().reset_index()
+        dataframe = dataframe.groupby(dataframe.time.dt.month).apply(calc_percentiles_for_month, args=(lat, lon, var))
+        dataset[var] = dataframe.set_index(['time', lat, lon]).to_xarray()[var]
     for key in attrs:
         dataset[key].attrs = attrs[key]
     # Set units for percentile ranked variables
     for var in vars_to_rank:
         dataset[var].attrs['units'] = 'percentile rank'
-    # This gets automatically added to do the groupby() operation but is not needed for the result
-    dataset = dataset.drop('month')
     # Drop unnecessary empty time slices
     dataset = dataset.dropna('time', how='all')
     return dataset
 
 
-def calc_percentiles_for_month(dataarray):
+def calc_percentiles_for_month(dataarray, args):
     """
     Groups the data into each coordinate
 
     :param dataarray: A dataarray sliced to contain only one variable and one month of the year
     :return: The percentile ranked dataarray
     """
-    return dataarray.groupby('loc').apply(calc_percentiles_for_coordinate)
+    lat, lon, var = args
+    result = dataarray.groupby([lat, lon]).apply(calc_percentiles_for_coordinate, args=(var,))
+    return result
 
 
-def calc_percentiles_for_coordinate(dataarray):
+def calc_percentiles_for_coordinate(dataarray, args):
     """
     Percentile ranks the data for a single coordinate
 
     :param dataarray: A dataarray sliced to contain only one variable, one month of the year, and one coordinate
     :return: The percentile ranked dataarray
     """
-    # If this coordinate only has NaNs, there's nothing to rank
-    if numpy.isnan(dataarray).all():
-        return dataarray
-    # Mask out any remaining NaNs
-    masked_array = dataarray.to_masked_array()
-    # Convert to percentile rank
-    ranked_array = scipy.stats.mstats.rankdata(masked_array)
-    # scipy.stats.mstats.rankdata() sets masked values to zero. Change them back to NaN.
-    ranked_array[ranked_array == 0] = numpy.nan
-    percentile_array = (ranked_array - 1) / len(dataarray)
-    return percentile_array
+    var, = args
+    dataarray[var] = dataarray[var].rank(pct=True, na_option='keep')
+    return dataarray
 
 
 if __name__ == '__main__':
