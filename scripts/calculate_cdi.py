@@ -1,10 +1,9 @@
 import argparse
 import xarray
 from datetime import datetime
-from utils import save_to_netcdf
+import utils
 import logging
 from percentile_rank import percentile_rank
-from truncate_time_dim import truncate_time_dim
 import os
 import multiprocessing
 
@@ -67,10 +66,10 @@ def main():
     pool.join()
 
     # Combine the percentile ranked data into a CDI
-    with xarray.open_mfdataset(ranked_files, chunks={'time': 20}, preprocess=standardise_dataset, combine='by_coords') \
-            as combined_dataset:
+    with xarray.open_mfdataset(ranked_files, chunks={'time': 10}, preprocess=standardise_dataset,
+                               combine='by_coords') as combined_dataset:
         result = calc_cdi(combined_dataset, options)
-        save_to_netcdf(result, options.output, logging_level=options.verbose)
+        utils.save_to_netcdf(result, options.output, logging_level=options.verbose)
 
     # Remove temporary percentile ranked files
     for file in ranked_files:
@@ -90,7 +89,7 @@ def percentile_rank_dataset(args):
     input_path, output_path, verbosity, var = args
     with xarray.open_dataset(input_path) as dataset:
         ranked_dataset = percentile_rank(dataset, logging_level=verbosity, rank_vars=[var])
-        save_to_netcdf(ranked_dataset, output_path, logging_level=verbosity)
+        utils.save_to_netcdf(ranked_dataset, output_path, logging_level=verbosity)
 
 
 def standardise_dataset(dataset):
@@ -108,7 +107,7 @@ def standardise_dataset(dataset):
         pass
     dataset['latitude'] = dataset['latitude'].astype('f4')  # This fixes xarray dropping values to Nan in a stripe
     dataset['longitude'] = dataset['longitude'].astype('f4')  # pattern. The exact cause was never found.
-    dataset = truncate_time_dim(dataset)
+    dataset = utils.truncate_time_dim(dataset)
     return dataset
 
 

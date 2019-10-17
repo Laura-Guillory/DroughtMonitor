@@ -2,7 +2,6 @@ import xarray
 import argparse
 import os
 from datetime import datetime
-from scripts import truncate_time_dim
 import utils
 import glob
 import subprocess
@@ -94,7 +93,7 @@ def calc_monthly_avg_temp(file_path, logging_level=logging.INFO):
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore', category=RuntimeWarning)
                     monthly_dataset = dataset.resample(time='M').mean().transpose('lat', 'lon', 'time')
-                monthly_dataset = truncate_time_dim(monthly_dataset)
+                monthly_dataset = utils.truncate_time_dim(monthly_dataset)
                 monthly_dataset[input_dataset].attrs['units'] = dataset[input_dataset].units
                 output_file_path = path.replace(input_dataset, 'monthly_' + input_dataset)
                 utils.save_to_netcdf(monthly_dataset, output_file_path, logging_level=logging.WARN)
@@ -118,7 +117,7 @@ def calc_monthly_et_short_crop(file_path, logging_level=logging.INFO):
     for et_path in et_paths:
         with xarray.open_dataset(et_path) as dataset:
             monthly_et = dataset.resample(time='M').sum(skipna=False)
-            monthly_et = truncate_time_dim(monthly_et)
+            monthly_et = utils.truncate_time_dim(monthly_et)
             monthly_et['et_short_crop'].attrs['units'] = dataset.et_short_crop.units
             output_file_path = et_path.replace('et_short_crop', 'monthly_et_short_crop')
             utils.save_to_netcdf(monthly_et, output_file_path, logging_level=logging.WARN)

@@ -4,11 +4,15 @@ import numpy
 from datetime import datetime
 import os
 from utils import save_to_netcdf
+import logging
+
+logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
+LOGGER = logging.getLogger(__name__)
 
 
 def main():
     start_time = datetime.now()
-    print('Starting time: ' + str(start_time))
+    LOGGER.info('Starting time: ' + str(start_time))
 
     options = get_options()
     dataset = xarray.open_dataset(options.input)
@@ -27,9 +31,9 @@ def main():
         os.rename(temp_filename, options.input)
 
     end_time = datetime.now()
-    print('End time: ' + str(end_time))
+    LOGGER.info('End time: ' + str(end_time))
     elapsed_time = end_time - start_time
-    print('Elapsed time: ' + str(elapsed_time))
+    LOGGER.info('Elapsed time: ' + str(elapsed_time))
 
 
 def get_options():
