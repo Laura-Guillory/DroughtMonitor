@@ -11,5 +11,3 @@ proj4
 geos
 astropy
 rasterio
-pytest
-bottleneck
