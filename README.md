@@ -1,6 +1,24 @@
-# Climate Data Tools
+# Drought Monitor
 
-This repository contains Tools for obtaining and processing gridded climate data from [LongPaddock's SILO](https://silo.longpaddock.qld.gov.au/), The Bureau of Meteorology [(NDVI)](http://www.bom.gov.au/jsp/awap/ndvi/index.jsp), and other netCDF files.
+This project contains software for calculating the Australian Combined Drought Indicator (CDI) for NACP's Drought 
+Monitor product. The Australian CDI provides a view of general drought conditions across Australia.
+
+Features of this software package include:
+* Downloading data from source
+* Preprocessing data
+* Percentile ranking datasets
+* Calculating CDI
+* Generating maps of Australia
+
+This software is implemented in Python and designed for handling netCDF files.
+
+Input datasets for the CDI are: NDVI, SPI-3, Soil Moisture, and ET short crop. Data is sourced from 
+[LongPaddock's SILO](https://silo.longpaddock.qld.gov.au/), and the Bureau of Meteorology 
+[(NDVI](http://www.bom.gov.au/jsp/awap/ndvi/index.jsp), [Soil Moisture)](http://www.bom.gov.au/water/landscape).
+
+This software package does not calculate SPI-3, which is a prerequisite for the CDI. It is suggested to use 
+[this standard Climate Indices package](https://github.com/monocongo/climate_indices) to calculate SPI-3 from that
+rainfall data.
 
 ## Requirements
 
@@ -11,6 +29,70 @@ This repository contains Tools for obtaining and processing gridded climate data
 
 Scripts can be found in the `scripts` directory. Please be advised it can take some time to process large volumes of 
 data.
+
+## How to calculate CDI
+
+1. Download the data
+
+    Run download.py to download the input datasets. Suggested command: 
+    ```
+       python download.py -v --datasets monthly_rain et_short_crop ndvi soil_moisture
+    ```
+    
+    This will download all the input data from [LongPaddock's SILO](https://silo.longpaddock.qld.gov.au/), and the Bureau 
+    of Meteorology [(NDVI](http://www.bom.gov.au/jsp/awap/ndvi/index.jsp), 
+    [Soil Moisture)](http://www.bom.gov.au/water/landscape) and save the files in the default directory, `data`.
+
+2. Prepare the data
+
+    The data is downloaded as-is and is not ready to be used to calculate the CDI. Some of the data is downloaded as 
+    gridded ASCII files, some of the datasets are split into dozens of files, some are daily data instead of monthly,
+    etc. This will convert the data into netCDF format with one file per dataset.
+    
+    ```
+   python prep_files.py -v --datasets monthly_rain monthly_et_short_crop ndvi soil_moisture
+    ```
+   
+3. Calculate SPI-3
+    
+    We now have the monthly_rain dataset prepared but need to calculate the SPI-3 to use for the CDI. It is suggested 
+    to use [this standard Climate Indices package](https://github.com/monocongo/climate_indices).
+    
+    3.1 - Download Climate Indices  
+    3.2 - Install Climate Indices according to the documentation 
+    [here](https://climate-indices.readthedocs.io/en/latest/).  
+    3.3 - Calculate SPI-3 using the following command:
+    ```
+    process_climate_indices --index spi --periodicity monthly --netcdf_precip {monthly_rain file} --var_name_precip monthly_rain --output_file_base spi_3.nc --scales 3 --calibration_start_year 1910 --calibration_end_year 2018
+    ```
+   Where `{monthly_rain file}` is the path to the netCDF file containing the monthly_rain dataset that we created in 
+   step 2.
+   
+4. Calculate CDI
+
+    We can now combine the four datasets we've prepared to calculate the CDI.
+    ```
+    python calculate_cdi.py -v --ndvi data/ndvi/full_ndvi.nc --ndvi_var ndvi --spi {spi_3 file} --spi_var spi_pearson_03 --et data/monthly_et_short_crop/full_monthly_et_short_crop.nc --et_var et_short_crop --sm data/soil_moisture/full_soil_moisture.nc --sm_var sm_pct --output cdi.nc 
+    ```
+    Where `{spi_3 file}` is the path to the netCDF file for SPI-3 that we created in step 3.
+    
+    If you experience problems with this step due to a high volume of data, try running on a HPC or using the 
+    `--multiprocessing single` option.
+    
+    A file should be created called `cdi.nc` containing the result.
+    
+5. (Optional) Generate some maps
+    
+    You could view the result in a netCDF viewer such as [Panoply](https://www.giss.nasa.gov/tools/panoply/download/)
+    or [ArcGis](https://www.arcgis.com/index.html), or you can generate some maps from the data.
+    
+    ```
+    python generate_maps.py --netcdf cdi.nc --var_name cdi --output_file_base maps/CDI/CDI_ --title "Australian Combined Drought Indicator" --colorbar_label CDI --colormap BlYlBn --levels 0.02 0.05 0.1 0.2 0.3 0.7 0.8 0.9 0.95 0.98 --colorbar_ticklabels "Exceptional drought, Extreme drought, Severe drought, Moderate drought, Abnormally dry, Near Normal, Abnormally wet, Moderate wet, Severe wet, Extreme wet, Exceptional wet" --height 4000000 --width 4100000 --no_data
+    ```
+    
+    This will create one map for every month in `cdi.nc`, which can be found in the `maps/CDI` directory. If you only want to generate a few maps, you can use the 
+    `--start_date` and `--end_date` options.
+ 
 
 ### download.py
 
@@ -35,10 +117,10 @@ delete it before running again.
 
 ### prep_files.py
 
-Prepares files for use in calculations such as [climate indices](https://github.com/monocongo/climate_indices). 
-The data downloaded from SILO is split into one file per year, and NDVI data downloaded from the Bureau of 
-Meteorology is split into one file per month. This consolidates each dataset into one file, reorders the 
-dimensions into (lat, lon, time), and truncates each time entry to the beginning of the month.
+Prepares files before use in the [Climate Indices](https://github.com/monocongo/climate_indices) package or calculating 
+the CDI. The data downloaded from SILO is split into one file per year, and NDVI data downloaded from the Bureau of 
+Meteorology is split into one file per month. This consolidates each dataset into one file, and reorders the 
+dimensions into (lat, lon, time).
 
 This script can also calculate an average temperature dataset in monthly format, as long as minimum and maximum 
 temperature datasets are present.
@@ -47,7 +129,9 @@ In the case of the NDVI dataset (which are downloaded as gridded ASCII files), i
 being processed.
 
 In the case of the soil moisture dataset (which is not split into years and downloaded as a single file), it will be
-combined with historical data.
+combined with historical data if present. 
+
+The resulting files can be found in {dataset}/full_{dataset}.nc, depending on the path you specify.
 
 ```
 Usage: python download.py --path PATH --datasets dataset1 dataset2
