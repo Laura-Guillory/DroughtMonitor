@@ -46,7 +46,7 @@ def main():
                         continue
                     try_to_download(url, destination)
         elif dataset == 'soil_moisture':
-            destination = path.format(dataset=dataset, date='recent/recent', filetype='nc')
+            destination = path.format(dataset=dataset, date='recent', filetype='nc')
             try_to_download(DOWNLOAD_URLS['soil_moisture'], destination)
         else:
             for year in range(1889, current_year + 1):

@@ -43,8 +43,11 @@ dimensions into (lat, lon, time), and truncates each time entry to the beginning
 This script can also calculate an average temperature dataset in monthly format, as long as minimum and maximum 
 temperature datasets are present.
 
-In the case of NDVI datasets (which are downloaded as gridded ASCII files), they will be converted to netCDF before
+In the case of the NDVI dataset (which are downloaded as gridded ASCII files), it will be converted to netCDF before
 being processed.
+
+In the case of the soil moisture dataset (which is not split into years and downloaded as a single file), it will be
+combined with historical data.
 
 ```
 Usage: python download.py --path PATH --datasets dataset1 dataset2

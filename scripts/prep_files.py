@@ -7,15 +7,17 @@ import glob
 import subprocess
 import logging
 import warnings
+import shutil
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
 
 DOWNLOADED_DATASETS = ['daily_rain', 'et_morton_actual', 'et_morton_potential', 'et_morton_wet', 'et_short_crop',
                        'et_tall_crop', 'evap_morton_lake', 'evap_pan', 'evap_syn', 'max_temp', 'min_temp',
-                       'monthly_rain', 'mslp', 'radiation', 'rh_tmax', 'vp', 'vp_deficit', 'ndvi']
+                       'monthly_rain', 'mslp', 'radiation', 'rh_tmax', 'vp', 'vp_deficit', 'ndvi', 'soil_moisture']
 ASCII_DATASETS = ['ndvi']
 COMPUTED_DATASETS = ['monthly_avg_temp', 'monthly_et_short_crop']
+OTHER_DATASETS = ['soil_moisture']
 DEFAULT_PATH = 'data/{dataset}/{year}.{dataset}.{filetype}'
 
 
@@ -29,12 +31,14 @@ def main():
         os.makedirs(os.path.dirname(options.path.format(dataset=dataset_name, year='', filetype='-')), exist_ok=True)
         if dataset_name in ASCII_DATASETS:
             ascii_2_netcdf(dataset_name, options.path, logging_level=options.verbose)
-        elif dataset_name not in COMPUTED_DATASETS:
+        elif dataset_name not in COMPUTED_DATASETS + OTHER_DATASETS:
             merge_years(dataset_name, options.path, logging_level=options.verbose)
     if 'monthly_avg_temp' in options.datasets:
         calc_monthly_avg_temp(options.path, logging_level=options.verbose)
     if 'monthly_et_short_crop' in options.datasets:
         calc_monthly_et_short_crop(options.path, logging_level=options.verbose)
+    if 'soil_moisture' in options.datasets:
+        combine_soil_moisture(options.path, logging_level=options.verbose)
     end_time = datetime.now()
     LOGGER.info('End time: ' + str(end_time))
     elapsed_time = end_time - start_time
@@ -165,6 +169,42 @@ def ascii_2_netcdf(dataset_name, file_path, logging_level=logging.INFO):
     # Save as one file
     output_file_path = get_merged_dataset_path(file_path, dataset_name)
     utils.save_to_netcdf(dataset, output_file_path, logging_level=logging_level)
+
+
+def combine_soil_moisture(file_path, logging_level=logging.INFO):
+    # Soil moisture is given as two files - one is historical data and the other is recent data downloaded from BoM.
+    # There is some overlap. We need to combine these files while giving precedence to the recent data downloaded from
+    # BoM
+    historical_dataset_path = file_path.format(dataset='soil_moisture', year='historical', filetype='nc')
+    recent_dataset_path = file_path.format(dataset='soil_moisture', year='recent', filetype='nc')
+    output_file_path = get_merged_dataset_path(file_path, 'soil_moisture')
+    try:
+        historical_dataset = xarray.open_dataset(historical_dataset_path, chunks={'time': 10})
+    except FileNotFoundError:
+        logging.warning('Historical data for soil moisture not found. Proceeding with recent data only. If you meant '
+                        'to include historical data, please place it at: ' + historical_dataset_path)
+        shutil.copyfile(recent_dataset_path, output_file_path)
+        return
+    historical_dataset = historical_dataset.drop('time_bnds', errors='ignore')
+    fix_time_dimension(recent_dataset_path)
+    recent_dataset = xarray.open_dataset(recent_dataset_path, chunks={'time': 10})
+    combined = recent_dataset.combine_first(historical_dataset)
+    utils.save_to_netcdf(combined, output_file_path, logging_level=logging_level)
+
+
+def fix_time_dimension(dataset_path):
+    # For whatever reason an extra variable gets inserted into these files that makes the time decoding utterly fail.
+    with xarray.open_dataset(dataset_path, chunks={'time': 10}, decode_times=False) as dataset:
+        dataset = dataset.drop('time_bounds', errors='ignore')
+        utils.save_to_netcdf(dataset, dataset_path + '.temp')
+    os.remove(dataset_path)
+    os.rename(dataset_path + '.temp', dataset_path)
+    # Dates need to be truncated to each month and saved to file - if not saved to file the combine doesn't work.
+    with xarray.open_dataset(dataset_path, chunks={'time': 10}) as dataset:
+        dataset = utils.truncate_time_dim(dataset)
+        utils.save_to_netcdf(dataset, dataset_path + '.temp')
+    os.remove(dataset_path)
+    os.rename(dataset_path + '.temp', dataset_path)
 
 
 if __name__ == '__main__':
