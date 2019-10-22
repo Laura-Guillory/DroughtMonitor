@@ -200,7 +200,7 @@ def generate_all_maps(options, number_of_worker_processes):
         map_data = []
 
         # Make sure coordinate dims exist
-        lat, lon = utils.get_lon_lat_names(dataset)
+        lon, lat = utils.get_lon_lat_names(dataset)
 
         for date, data_slice in dataset[options.var_name].groupby('time'):
             date = date.astype('<M8[M]').item()
@@ -215,7 +215,7 @@ def generate_all_maps(options, number_of_worker_processes):
                 continue
 
             # Add to list of images to be generated
-            map_data.append((data_slice, lat, lon, options, file_path, date))
+            map_data.append((data_slice, dataset[lat], dataset[lon], options, file_path, date))
 
     # Multiprocessing - one process per time slice
     pool = multiprocessing.Pool(number_of_worker_processes)
