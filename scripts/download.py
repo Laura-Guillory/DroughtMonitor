@@ -5,6 +5,8 @@ from datetime import datetime
 import argparse
 import calendar
 import logging
+import xarray
+import numpy
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -17,6 +19,7 @@ DEFAULT_PATH = 'data/{dataset}/{date}.{dataset}.{filetype}'
 DATASET_CHOICES = ['daily_rain', 'et_morton_actual', 'et_morton_potential', 'et_morton_wet', 'et_short_crop',
                    'et_tall_crop', 'evap_morton_lake', 'evap_pan', 'evap_syn', 'max_temp', 'min_temp', 'monthly_rain',
                    'mslp', 'radiation', 'rh_tmax', 'vp', 'vp_deficit', 'ndvi', 'soil_moisture']
+DAILY_DATASETS = ['daily_rain', 'et_short_crop', 'max_temp', 'min_temp']
 
 
 def main():
@@ -29,7 +32,12 @@ def main():
     else:
         chosen_datasets = options.datasets
     path = options.path if options.path else DEFAULT_PATH
-    for dataset in chosen_datasets:
+    download_datasets(path, chosen_datasets)
+    check_data_is_current(path, chosen_datasets)
+
+
+def download_datasets(path, datasets):
+    for dataset in datasets:
         LOGGER.info('Downloading {} dataset.'.format(dataset))
         current_year = datetime.now().year
         if dataset == 'ndvi':
@@ -57,7 +65,6 @@ def main():
                     LOGGER.info('Already have {}'.format(url))
                     continue
                 try_to_download(url, destination)
-    LOGGER.info('Done!')
 
 
 def get_options():
@@ -112,6 +119,42 @@ def file_already_downloaded(path):
     if os.path.isfile(path):
         return True
     return False
+
+
+def check_data_is_current(path, dataset_names):
+    date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    date = date.replace(month=12 if date.month == 0 else date.month - 1)
+    LOGGER.info(date.strftime('Checking if data has been released for %B %Y.'))
+    for dataset_name in dataset_names:
+        if dataset_name == 'ndvi':
+            destination = path.format(dataset=dataset_name, date=date.strftime('%Y-%m'), filetype='txt.Z')
+            if os.path.exists(destination):
+                LOGGER.info(dataset_name + ": Yes")
+            else:
+                LOGGER.info(dataset_name + ": No")
+        elif dataset_name == 'soil_moisture':
+            destination = path.format(dataset=dataset_name, date='recent', filetype='nc')
+            with xarray.open_dataset(destination) as soil_moisture:
+                date_modified_str = soil_moisture.attrs['date_modified']
+                date_file_modified = datetime.strptime(date_modified_str, '%Y-%m-%dT%H:%M:%S')
+                date_file_modified = date_file_modified.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                if date <= date_file_modified:
+                    LOGGER.info(dataset_name + ": Yes")
+                else:
+                    LOGGER.info(dataset_name + ": No")
+        else:
+            destination = path.format(dataset=dataset_name, date=date.year, filetype='nc')
+            with xarray.open_dataset(destination) as dataset:
+                last_day_of_month = date.replace(day=calendar.monthrange(date.year, date.month)[1])
+                if dataset_name in DAILY_DATASETS:
+                    time_slice = slice(last_day_of_month.strftime('%Y-%m-%d'), last_day_of_month.strftime('%Y-%m-%d'))
+                else:
+                    time_slice = slice(date.strftime('%Y-%m-%d'), last_day_of_month.strftime('%Y-%m-%d'))
+                subset = dataset.sel(time=time_slice)
+                if subset['time'].values.size > 0 and not numpy.isnan(subset[dataset_name]).all():
+                    LOGGER.info(dataset_name + ": Yes")
+                else:
+                    LOGGER.info(dataset_name + ": No")
 
 
 if __name__ == '__main__':
