@@ -186,25 +186,9 @@ def combine_soil_moisture(file_path, logging_level=logging.INFO):
         shutil.copyfile(recent_dataset_path, output_file_path)
         return
     historical_dataset = historical_dataset.drop('time_bnds', errors='ignore')
-    fix_time_dimension(recent_dataset_path)
     recent_dataset = xarray.open_dataset(recent_dataset_path, chunks={'time': 10})
     combined = recent_dataset.combine_first(historical_dataset)
     utils.save_to_netcdf(combined, output_file_path, logging_level=logging_level)
-
-
-def fix_time_dimension(dataset_path):
-    # For whatever reason an extra variable gets inserted into these files that makes the time decoding utterly fail.
-    with xarray.open_dataset(dataset_path, chunks={'time': 10}, decode_times=False) as dataset:
-        dataset = dataset.drop('time_bounds', errors='ignore')
-        utils.save_to_netcdf(dataset, dataset_path + '.temp')
-    os.remove(dataset_path)
-    os.rename(dataset_path + '.temp', dataset_path)
-    # Dates need to be truncated to each month and saved to file - if not saved to file the combine doesn't work.
-    with xarray.open_dataset(dataset_path, chunks={'time': 10}) as dataset:
-        dataset = utils.truncate_time_dim(dataset)
-        utils.save_to_netcdf(dataset, dataset_path + '.temp')
-    os.remove(dataset_path)
-    os.rename(dataset_path + '.temp', dataset_path)
 
 
 if __name__ == '__main__':

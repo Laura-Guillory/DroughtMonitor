@@ -7,6 +7,7 @@ import calendar
 import logging
 import xarray
 import numpy
+import utils
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -132,6 +133,7 @@ def check_data_is_current(path, dataset_names):
                 LOGGER.info(dataset_name + ": No")
         elif dataset_name == 'soil_moisture':
             destination = path.format(dataset=dataset_name, date='recent', filetype='nc')
+            fix_time_dimension(destination)
             with xarray.open_dataset(destination) as soil_moisture:
                 date_modified_str = soil_moisture.attrs['date_modified']
                 date_file_modified = datetime.strptime(date_modified_str, '%Y-%m-%dT%H:%M:%S')
@@ -153,6 +155,22 @@ def check_data_is_current(path, dataset_names):
                     LOGGER.info(dataset_name + ": Yes")
                 else:
                     LOGGER.info(dataset_name + ": No")
+
+
+def fix_time_dimension(dataset_path):
+    # For whatever reason an extra variable gets inserted into these files that makes the time decoding utterly fail.
+    # The soil moisture file can't be opened properly without doing this
+    with xarray.open_dataset(dataset_path, chunks={'time': 10}, decode_times=False) as dataset:
+        dataset = dataset.drop('time_bounds', errors='ignore')
+        utils.save_to_netcdf(dataset, dataset_path + '.temp')
+    os.remove(dataset_path)
+    os.rename(dataset_path + '.temp', dataset_path)
+    # Dates need to be truncated to each month and saved to file - if not saved to file the combine doesn't work.
+    with xarray.open_dataset(dataset_path, chunks={'time': 10}) as dataset:
+        dataset = utils.truncate_time_dim(dataset)
+        utils.save_to_netcdf(dataset, dataset_path + '.temp')
+    os.remove(dataset_path)
+    os.rename(dataset_path + '.temp', dataset_path)
 
 
 if __name__ == '__main__':
