@@ -50,7 +50,6 @@ def download_datasets(path, datasets):
                     url = DOWNLOAD_URLS['NDVI'].format(date_range=date_range)
                     # Always redownload most recent year
                     if file_already_downloaded(destination) and year != datetime.now().year:
-                        LOGGER.info('Already have {}'.format(url))
                         continue
                     try_to_download(url, destination)
         elif dataset == 'soil_moisture':
@@ -62,7 +61,6 @@ def download_datasets(path, datasets):
                 url = DOWNLOAD_URLS['SILO'].format(dataset=dataset, year=year)
                 # Always redownload most recent year
                 if file_already_downloaded(destination) and year != datetime.now().year:
-                    LOGGER.info('Already have {}'.format(url))
                     continue
                 try_to_download(url, destination)
 
@@ -124,7 +122,7 @@ def file_already_downloaded(path):
 def check_data_is_current(path, dataset_names):
     date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     date = date.replace(month=12 if date.month == 0 else date.month - 1)
-    LOGGER.info(date.strftime('Checking if data has been released for %B %Y.'))
+    LOGGER.info(date.strftime('Checking if data has been released for %B %Y:'))
     for dataset_name in dataset_names:
         if dataset_name == 'ndvi':
             destination = path.format(dataset=dataset_name, date=date.strftime('%Y-%m'), filetype='txt.Z')
