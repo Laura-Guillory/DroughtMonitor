@@ -19,6 +19,7 @@ ASCII_DATASETS = ['ndvi']
 COMPUTED_DATASETS = ['monthly_avg_temp', 'monthly_et_short_crop']
 OTHER_DATASETS = ['soil_moisture']
 DEFAULT_PATH = 'data/{dataset}/{year}.{dataset}.{filetype}'
+DAILY_DATASETS = ['daily_rain', 'et_short_crop', 'max_temp', 'min_temp']
 
 
 def main():
@@ -135,6 +136,8 @@ def merge_years(dataset_name, file_path, logging_level=logging.INFO):
     with xarray.open_mfdataset(inputs_path, chunks={'time': 10}, combine='by_coords', parallel=True, engine='h5netcdf') as dataset:
         # Dimensions must be in this order to be accepted by the climate indices tool
         dataset = dataset.drop('crs', errors='ignore').transpose('lat', 'lon', 'time')
+        if dataset_name not in DAILY_DATASETS:
+            dataset = utils.truncate_time_dim(dataset)
         encoding = {'time': {'units': 'days since 1889-01', '_FillValue': None}}
         utils.save_to_netcdf(dataset, output_path, encoding=encoding, logging_level=logging_level)
 
@@ -149,14 +152,16 @@ def ascii_2_netcdf(dataset_name, file_path, logging_level=logging.INFO):
     # Unzip all files
     input_paths = glob.glob(file_path.format(dataset=dataset_name, year='*', filetype='txt.Z'))
     for path in input_paths:
-        command = 'C:/Program Files/7-Zip/7z.exe' if os.name == 'nt' else '7z'
-        subprocess.call([command, 'e', path, '-o' + os.path.dirname(path), '-y'], stdout=open(os.devnull, 'w'),
-                        stderr=subprocess.STDOUT, close_fds=True)
+        if os.name == 'nt':
+            subprocess.call(['C:/Program Files/7-Zip/7z.exe', 'e', path, '-o' + os.path.dirname(path), '-y'],
+                            stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT, close_fds=True)
+        else:
+            subprocess.call(['uncompress', path], stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT, close_fds=True)
     # Convert files to netcdf
     dates = []
     input_paths = glob.glob(file_path.format(dataset=dataset_name, year='*', filetype='txt'))
     for path in input_paths:
-        file_name = path.split('\\')[-1]
+        file_name = os.path.basename(path)
         date = file_name.split('.')[0]
         datetime_object = datetime.strptime(date, '%Y-%m')
         dates.append(datetime_object)

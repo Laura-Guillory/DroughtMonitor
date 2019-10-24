@@ -200,6 +200,7 @@ def generate_all_maps(options, number_of_worker_processes):
         map_data = []
 
         # Make sure coordinate dims exist
+        dataset = dataset.dropna('time', how='all')
         lon, lat = utils.get_lon_lat_names(dataset)
 
         for date, data_slice in dataset[options.var_name].groupby('time'):
