@@ -8,6 +8,7 @@ import subprocess
 import logging
 import warnings
 import shutil
+import calendar
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -94,6 +95,9 @@ def calc_monthly_avg_temp(file_path, logging_level=logging.INFO):
         paths = glob.glob(file_path.format(dataset=input_dataset, year='*', filetype='nc'))
         for path in paths:
             with xarray.open_dataset(path) as dataset:
+                # If the last month is incomplete we should drop it
+                dataset = drop_incomplete_months(dataset)
+
                 # We expect warnings here about means of empty slices, just ignore them
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore', category=RuntimeWarning)
@@ -109,7 +113,7 @@ def calc_monthly_avg_temp(file_path, logging_level=logging.INFO):
         dataset['avg_temp'] = (dataset.max_temp + dataset.min_temp) / 2
         dataset['avg_temp'].attrs['units'] = dataset.max_temp.units
         # Dimensions must be in this order to be accepted by the climate indices tool
-        dataset = dataset.drop('max_temp').drop('min_temp').transpose('lat', 'lon', 'time')
+        dataset = dataset.drop('max_temp').drop('min_temp').drop('crs', errors='ignore').transpose('lat', 'lon', 'time')
         output_file_path = get_merged_dataset_path(file_path, 'monthly_avg_temp')
         utils.save_to_netcdf(dataset, output_file_path, logging_level=logging_level)
 
@@ -121,6 +125,8 @@ def calc_monthly_et_short_crop(file_path, logging_level=logging.INFO):
     et_paths = glob.glob(file_path.format(dataset='et_short_crop', year='*', filetype='nc'))
     for et_path in et_paths:
         with xarray.open_dataset(et_path) as dataset:
+            # If the last month is incomplete we should drop it
+            dataset = drop_incomplete_months(dataset)
             monthly_et = dataset.resample(time='M').sum(skipna=False)
             monthly_et = utils.truncate_time_dim(monthly_et)
             monthly_et['et_short_crop'].attrs['units'] = dataset.et_short_crop.units
@@ -194,6 +200,18 @@ def combine_soil_moisture(file_path, logging_level=logging.INFO):
     recent_dataset = xarray.open_dataset(recent_dataset_path, chunks={'time': 10})
     combined = recent_dataset.combine_first(historical_dataset)
     utils.save_to_netcdf(combined, output_file_path, logging_level=logging_level)
+
+
+def drop_incomplete_months(dataset):
+    last_date = dataset['time'].values[dataset['time'].values.size - 1].astype('<M8[D]').item()
+    last_day_of_month = calendar.monthrange(last_date.year, last_date.month)[1]
+    if last_date.day != last_day_of_month:
+        last_valid_day = last_date.replace(
+            month=last_date.month - 1,
+            day=calendar.monthrange(last_date.year, last_date.month - 1)[1]
+        )
+        return dataset.sel(time=slice('1890-01-01', last_valid_day))
+    return dataset
 
 
 if __name__ == '__main__':
