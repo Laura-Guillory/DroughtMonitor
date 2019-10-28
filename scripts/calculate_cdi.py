@@ -69,7 +69,13 @@ def main():
     with xarray.open_mfdataset(ranked_files, chunks={'time': 10}, preprocess=standardise_dataset,
                                combine='by_coords') as combined_dataset:
         result = calc_cdi(combined_dataset, options)
-        utils.save_to_netcdf(result, options.output, logging_level=options.verbose)
+        for scale in options.scales:
+            output_path = options.output_file_base + str(scale) + '.nc'
+            if scale == 1:
+                utils.save_to_netcdf(result, output_path, logging_level=options.verbose)
+            else:
+                averaged_cdi = calc_averaged_cdi(result, scale)
+                utils.save_to_netcdf(averaged_cdi, output_path, logging_level=options.verbose)
 
     # Remove temporary percentile ranked files
     for file in ranked_files:
@@ -165,8 +171,9 @@ def get_options():
         required=True
     )
     parser.add_argument(
-        '--output',
-        help='The location to save the result.',
+        '--output_file_base',
+        help='Base file name for all output files. Each computed scale for the CDI will have a corresponding output '
+             'file that begins with thise base name plus a month scale.',
         required=True
     )
     parser.add_argument(
@@ -183,11 +190,18 @@ def get_options():
         required=False,
         default="all_but_one",
     )
+    parser.add_argument(
+        '--scales',
+        help='The number of months to average the results over. Multiple values can be given.',
+        default=[1],
+        type=int,
+        nargs="+"
+    )
     args = parser.parse_args()
     return args
 
 
-def calc_cdi(dataset, options):
+def calc_cdi(dataset: xarray.Dataset, options):
     """
     Calculates the CDI based on the dataset containing all four variables.
 
@@ -195,10 +209,10 @@ def calc_cdi(dataset, options):
     :param options: Object containing command-line options, used to get the name of the input variables
     :return: Dataset containing only the calculated CDI
     """
-    dataset['cdi'] = NDVI_WEIGHT * dataset[options.ndvi_var] \
-                     + SPI_WEIGHT * dataset[options.spi_var] \
-                     + ET_WEIGHT * (1 - dataset[options.et_var]) \
-                     + SM_WEIGHT * dataset[options.sm_var]
+    dataset['cdi'] = dataset[options.ndvi_var] * NDVI_WEIGHT \
+                     + dataset[options.spi_var] * SPI_WEIGHT \
+                     + (dataset[options.et_var]*-1 + 1) * ET_WEIGHT \
+                     + dataset[options.sm_var] * SM_WEIGHT
     keys = dataset.keys()
     # Drop all input variables and anything else that slipped in, we ONLY want the CDI.
     for key in keys:
@@ -210,6 +224,21 @@ def calc_cdi(dataset, options):
     dataset['latitude'].attrs['units'] = 'degrees_north'
     dataset['longitude'].attrs['units'] = 'degrees_east'
     return dataset
+
+
+def calc_averaged_cdi(cdi: xarray.Dataset, scale):
+    """
+    Averages the CDI over a specified number of months.
+
+    :param cdi: Dataset containing the CDI
+    :param scale: Number of months to average over
+    :return:
+    """
+    LOGGER.info('Calculating average over ' + str(scale) + ' months.')
+    new_dataset = cdi.chunk({'time': 12})
+    new_dataset['cdi_' + str(scale)] = new_dataset['cdi'].rolling(time=scale).mean()
+    new_dataset = new_dataset.drop('cdi', errors='ignore').dropna('time', how='all')
+    return new_dataset
 
 
 if __name__ == '__main__':
