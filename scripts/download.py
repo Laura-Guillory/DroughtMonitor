@@ -21,6 +21,7 @@ DATASET_CHOICES = ['daily_rain', 'et_morton_actual', 'et_morton_potential', 'et_
                    'et_tall_crop', 'evap_morton_lake', 'evap_pan', 'evap_syn', 'max_temp', 'min_temp', 'monthly_rain',
                    'mslp', 'radiation', 'rh_tmax', 'vp', 'vp_deficit', 'ndvi', 'soil_moisture']
 DAILY_DATASETS = ['daily_rain', 'et_short_crop', 'max_temp', 'min_temp']
+EXCLUDE_DATES = {'ndvi': ['1994-05', '1994-06', '1994-07', '1994-08', '1994-09', '2003-08']}
 
 
 def main():
@@ -45,6 +46,8 @@ def download_datasets(path, datasets):
             for year in range(1992, current_year + 1):
                 for month in range(1, 13):
                     date = '{y}-{m:02d}'.format(y=year, m=month)
+                    if date in EXCLUDE_DATES['ndvi']:
+                        continue
                     day_of_year = calendar.monthrange(year, month)[1]
                     date_range = '{y}{m:02d}01{y}{m:02d}{d}'.format(y=year, m=month, d=day_of_year)
                     destination = path.format(dataset=dataset, date=date, filetype='txt.Z')
