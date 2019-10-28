@@ -6,6 +6,7 @@ import logging
 from percentile_rank import percentile_rank
 import os
 import multiprocessing
+import warnings
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -210,9 +211,9 @@ def calc_cdi(dataset: xarray.Dataset, options):
     :return: Dataset containing only the calculated CDI
     """
     dataset['cdi'] = dataset[options.ndvi_var] * NDVI_WEIGHT \
-                     + dataset[options.spi_var] * SPI_WEIGHT \
-                     + (dataset[options.et_var]*-1 + 1) * ET_WEIGHT \
-                     + dataset[options.sm_var] * SM_WEIGHT
+        + dataset[options.spi_var] * SPI_WEIGHT \
+        + (dataset[options.et_var]*-1 + 1) * ET_WEIGHT \
+        + dataset[options.sm_var] * SM_WEIGHT
     keys = dataset.keys()
     # Drop all input variables and anything else that slipped in, we ONLY want the CDI.
     for key in keys:
@@ -236,7 +237,10 @@ def calc_averaged_cdi(cdi: xarray.Dataset, scale):
     """
     LOGGER.info('Calculating average over ' + str(scale) + ' months.')
     new_dataset = cdi.chunk({'time': 12})
-    new_dataset['cdi_' + str(scale)] = new_dataset['cdi'].rolling(time=scale).mean()
+    # We expect warnings here about means of empty slices, just ignore them
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', category=RuntimeWarning)
+        new_dataset['cdi_' + str(scale)] = new_dataset['cdi'].rolling(time=scale).mean()
     new_dataset = new_dataset.drop('cdi', errors='ignore').dropna('time', how='all')
     return new_dataset
 
