@@ -96,10 +96,11 @@ def percentile_rank_dataset(args):
     input_path, output_path, verbosity, var = args
     with xarray.open_dataset(input_path) as dataset:
         ranked_dataset = percentile_rank(dataset, logging_level=verbosity, rank_vars=[var])
+        ranked_dataset = utils.truncate_time_dim(ranked_dataset)
         utils.save_to_netcdf(ranked_dataset, output_path, logging_level=verbosity)
 
 
-def standardise_dataset(dataset):
+def standardise_dataset(dataset: xarray.Dataset):
     """
     Prepare each dataset to be merged via xarray.open_mfdataset().
     This makes sure that the latitude and longitude dimensions have the same names, and the dates are all truncated to
@@ -114,7 +115,6 @@ def standardise_dataset(dataset):
         pass
     dataset['latitude'] = dataset['latitude'].astype('f4')  # This fixes xarray dropping values to Nan in a stripe
     dataset['longitude'] = dataset['longitude'].astype('f4')  # pattern. The exact cause was never found.
-    dataset = utils.truncate_time_dim(dataset)
     return dataset
 
 
@@ -210,10 +210,10 @@ def calc_cdi(dataset: xarray.Dataset, options):
     :param options: Object containing command-line options, used to get the name of the input variables
     :return: Dataset containing only the calculated CDI
     """
-    dataset['cdi'] = dataset[options.ndvi_var] * NDVI_WEIGHT \
-        + dataset[options.spi_var] * SPI_WEIGHT \
-        + (dataset[options.et_var]*-1 + 1) * ET_WEIGHT \
-        + dataset[options.sm_var] * SM_WEIGHT
+    dataset['cdi'] = NDVI_WEIGHT * dataset[options.ndvi_var] \
+                     + SPI_WEIGHT * dataset[options.spi_var] \
+                     + ET_WEIGHT * (1 - dataset[options.et_var]) \
+                     + SM_WEIGHT * dataset[options.sm_var]
     keys = dataset.keys()
     # Drop all input variables and anything else that slipped in, we ONLY want the CDI.
     for key in keys:
