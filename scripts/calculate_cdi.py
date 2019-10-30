@@ -70,13 +70,28 @@ def main():
     with xarray.open_mfdataset(ranked_files, chunks={'time': 10}, preprocess=standardise_dataset,
                                combine='by_coords') as combined_dataset:
         result = calc_cdi(combined_dataset, options)
+        cdi_path = options.output_file_base + '1.nc.temp'
+        utils.save_to_netcdf(result, cdi_path, logging_level=options.verbose)
+        multiprocess_args = []
         for scale in options.scales:
-            output_path = options.output_file_base + str(scale) + '.nc'
             if scale == 1:
-                utils.save_to_netcdf(result, output_path, logging_level=options.verbose)
+                continue
             else:
-                averaged_cdi = calc_averaged_cdi(result, scale)
-                utils.save_to_netcdf(averaged_cdi, output_path, logging_level=options.verbose)
+                output_path = options.output_file_base + str(scale) + '.nc'
+                multiprocess_args.append((cdi_path, scale, output_path, options.verbose))
+
+    # Multiprocessing for calculating CDI over various month scales
+    pool = multiprocessing.Pool(number_of_worker_processes)
+    pool.map(calc_averaged_cdi, multiprocess_args)
+    pool.close()
+    pool.join()
+
+    # Remove 1 month CDI if it wasn't wanted
+    if 1 not in options.scales:
+        os.remove(cdi_path)
+    else:
+        os.remove(options.output_file_base + '1.nc')
+        os.rename(cdi_path, options.output_file_base + '1.nc')
 
     # Remove temporary percentile ranked files
     for file in ranked_files:
@@ -103,8 +118,7 @@ def percentile_rank_dataset(args):
 def standardise_dataset(dataset: xarray.Dataset):
     """
     Prepare each dataset to be merged via xarray.open_mfdataset().
-    This makes sure that the latitude and longitude dimensions have the same names, and the dates are all truncated to
-    the beginning of the month.
+    This makes sure that the latitude and longitude dimensions have the same names.
 
     :param dataset: The dataset to standardise
     :return: Standardized dataset
@@ -123,8 +137,8 @@ def get_options():
     Gets command line arguments and returns them.
     Options are accessed via options.ndvi, options.output, etc.
 
-    Required arguments: ndvi, spi, et, sm, output
-    Optional arguments: verbose (v)
+    Required arguments: ndvi, ndvi_var, spi, spi_var, et, et_var, sm, sm_var, output_file_base
+    Optional arguments: verbose (v), multiprocessing, scales
 
     Run this with the -h (help) argument for more detailed information. (python calculate_cdi.py -h)
 
@@ -227,22 +241,27 @@ def calc_cdi(dataset: xarray.Dataset, options):
     return dataset
 
 
-def calc_averaged_cdi(cdi: xarray.Dataset, scale):
+def calc_averaged_cdi(args):
     """
-    Averages the CDI over a specified number of months.
-
-    :param cdi: Dataset containing the CDI
-    :param scale: Number of months to average over
-    :return:
+    Uses the CDI to calculate averages over a defined number of months (scale)
+    Can't have arguments directly with multiprocessing, they're packed as a tuple
     """
+    cdi_path, scale, output_path, logging_level = args
     LOGGER.info('Calculating average over ' + str(scale) + ' months.')
-    new_dataset = cdi.chunk({'time': 12})
-    # We expect warnings here about means of empty slices, just ignore them
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore', category=RuntimeWarning)
-        new_dataset['cdi_' + str(scale)] = new_dataset['cdi'].rolling(time=scale).mean()
-    new_dataset = new_dataset.drop('cdi', errors='ignore').dropna('time', how='all')
-    return new_dataset
+    with xarray.open_dataset(cdi_path, chunks={'time': 12}) as cdi:
+        new_dataset = cdi
+        new_var_name = 'cdi_' + str(scale)
+        # We expect warnings here about means of empty slices, just ignore them
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', category=RuntimeWarning)
+            new_dataset[new_var_name] = new_dataset['cdi'].rolling(time=scale).mean()
+        # Drop all input variables and anything else that slipped in, we ONLY want the new CDI.
+        keys = new_dataset.keys()
+        for key in keys:
+            if key != new_var_name:
+                new_dataset = new_dataset.drop(key)
+        new_dataset = new_dataset.dropna('time', how='all')
+        utils.save_to_netcdf(new_dataset, output_path, logging_level=logging_level)
 
 
 if __name__ == '__main__':
