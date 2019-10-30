@@ -200,7 +200,8 @@ def get_options():
     )
     parser.add_argument(
         '--multiprocessing',
-        help='Number of processes to use in multiprocessing.',
+        help='Number of processes to use in multiprocessing. Options: single, all_but_one, all. Defaults to '
+             'all_but_one.',
         choices=["single", "all_but_one", "all"],
         required=False,
         default="all_but_one",

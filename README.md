@@ -93,6 +93,7 @@ data.
     This will create one map for every month in `cdi.nc`, which can be found in the `maps/CDI` directory. If you only want to generate a few maps, you can use the 
     `--start_date` and `--end_date` options.
  
+## Scripts
 
 ### download.py
 
@@ -144,6 +145,42 @@ Arguments:
 | --path             | Determines where the input files can be found. Defaults to data/{dataset}/{year}.{dataset}.nc. Output will be saved in the same directory as 'full_{dataset}.nc'                                                                |
 | --datasets         | Which datasets to prepare. This argument is required. Accepts multiple arguments. Check DOWNLOADED_DATASETS and COMPUTED_DATASETS inside script to see options for this argument.
 | -v, --verbose      | Increase output verbosity |
+
+### calculate_cdi.py
+
+Script to calculate the Australian Combined Drought Indicator. Expects input of four netCDF files: Normalised 
+Difference Vegetation Index, Short Crop Evapotranspiration, 3-month SPI, and Available Water Content (Rootzone Soil 
+Moisture). Files do not need to be pre-processed into relative values or percentiles, actual values are ideal.
+
+Data from all four inputs are required. In the event that one or more are missing for a coordinate, that coordinate will
+be filled in with a NaN value. If one or more inputs are missing for certain dates, that date will be excluded from the 
+result.
+
+```
+Usage: python calculate_cdi.py --ndvi NDVI_PATH --ndvi_var NDVI_VAR --spi SPI_PATH --spi_var SPI_VAR --et ET_PATH --et_var ET_VAR --sm SM_PATH --sm_var SM_VAR --output_file_base OUTPUT_FILE_BASE
+```
+
+Required arguments:
+
+|||
+|--------------------|-------------------------------------------------------------------------------------------------|
+| --ndvi             | The path to the input NDVI netCDF file.                                                         |
+| --ndvi_var         | The name of the NDVI variable in the netCDF file.                                               |
+| --spi              | The path to the input SPI netCDF file.                                                          |
+| --spi_var          | The name of the SPI variable in the netCDF file.                                                |
+| --et               | The path to the input Evapotranspiration netCDF file.                                           |
+| --et_var           | The name of the Evapotranspiration variable in the netCDF file.                                 |
+| --sm               | The path to the input Soil Moisture netCDF file.                                                |
+| --sm_var           | The name of the Soil Moisture variable in the netCDF file.                                      |
+| --output_file_base | Base file name for all output files. Each computed scale for the CDI will have a corresponding output file that begins with thise base name plus a month scale.
+
+Optional arguments: 
+
+|||
+|--------------------|-------------------------------------------------------------------------------------------------|
+| -v, --verbose      | Increase output verbosity                                                                       |
+| --multiprocessing  | Number of processes to use in multiprocessing. Options: single, all_but_one, all. Defaults to all_but_one.|
+| --scales           | The number of months to average the results over. Multiple values can be given.                 |
 
 ### generate_maps.py
 
