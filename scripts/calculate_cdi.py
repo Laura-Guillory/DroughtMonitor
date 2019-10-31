@@ -248,6 +248,7 @@ def calc_averaged_cdi(args):
     Can't have arguments directly with multiprocessing, they're packed as a tuple
     """
     cdi_path, scale, output_path, logging_level = args
+    LOGGER.setLevel(logging_level)
     LOGGER.info('Calculating average over ' + str(scale) + ' months.')
     with xarray.open_dataset(cdi_path, chunks={'time': 12}) as cdi:
         new_dataset = cdi
