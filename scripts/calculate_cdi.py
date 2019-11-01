@@ -70,28 +70,23 @@ def main():
     with xarray.open_mfdataset(ranked_files, chunks={'time': 10}, preprocess=standardise_dataset,
                                combine='by_coords') as combined_dataset:
         result = calc_cdi(combined_dataset, options)
-        cdi_path = options.output_file_base + '1.nc.temp'
-        utils.save_to_netcdf(result, cdi_path, logging_level=options.verbose)
-        multiprocess_args = []
+        cdi_temp_path = options.output_file_base + '1.nc.temp'
+        utils.save_to_netcdf(result, cdi_temp_path, logging_level=options.verbose)
         for scale in options.scales:
             if scale == 1:
                 continue
             else:
                 output_path = options.output_file_base + str(scale) + '.nc'
-                multiprocess_args.append((cdi_path, scale, output_path, options.verbose))
-
-    # Multiprocessing for calculating CDI over various month scales
-    pool = multiprocessing.Pool(number_of_worker_processes)
-    pool.map(calc_averaged_cdi, multiprocess_args)
-    pool.close()
-    pool.join()
+                calc_averaged_cdi(cdi_temp_path, scale, output_path, options.verbose)
 
     # Remove 1 month CDI if it wasn't wanted
     if 1 not in options.scales:
-        os.remove(cdi_path)
+        os.remove(cdi_temp_path)
     else:
-        os.remove(options.output_file_base + '1.nc')
-        os.rename(cdi_path, options.output_file_base + '1.nc')
+        cdi_path = options.output_file_base + '1.nc'
+        if os.path.exists(cdi_path):
+            os.remove(cdi_path)
+        os.rename(cdi_temp_path, cdi_path)
 
     # Remove temporary percentile ranked files
     for file in ranked_files:
@@ -242,28 +237,25 @@ def calc_cdi(dataset: xarray.Dataset, options):
     return dataset
 
 
-def calc_averaged_cdi(args):
+def calc_averaged_cdi(cdi_path, scale, output_path, logging_level):
     """
     Uses the CDI to calculate averages over a defined number of months (scale)
     Can't have arguments directly with multiprocessing, they're packed as a tuple
     """
-    cdi_path, scale, output_path, logging_level = args
-    LOGGER.setLevel(logging_level)
-    LOGGER.info('Calculating average over ' + str(scale) + ' months.')
-    with xarray.open_dataset(cdi_path, chunks={'time': 12}) as cdi:
-        new_dataset = cdi
-        new_var_name = 'cdi_' + str(scale)
-        # We expect warnings here about means of empty slices, just ignore them
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', category=RuntimeWarning)
-            new_dataset[new_var_name] = new_dataset['cdi'].rolling(time=scale).mean()
-        # Drop all input variables and anything else that slipped in, we ONLY want the new CDI.
-        keys = new_dataset.keys()
-        for key in keys:
-            if key != new_var_name:
-                new_dataset = new_dataset.drop(key)
-        new_dataset = new_dataset.dropna('time', how='all')
-        utils.save_to_netcdf(new_dataset, output_path, logging_level=logging_level)
+    # We expect warnings here about means of empty slices, just ignore them
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', category=RuntimeWarning)
+        LOGGER.info('Calculating average over ' + str(scale) + ' months.')
+        with xarray.open_dataset(cdi_path, chunks={'time': 12}) as dataset:
+            new_var_name = 'cdi_' + str(scale)
+            dataset[new_var_name] = dataset['cdi'].rolling(time=scale).construct('window').mean('window')
+            # Drop all input variables and anything else that slipped in, we ONLY want the new CDI.
+            keys = dataset.keys()
+            for key in keys:
+                if key != new_var_name:
+                    dataset = dataset.drop(key)
+            dataset = dataset.dropna('time', how='all')
+            utils.save_to_netcdf(dataset, output_path, logging_level=logging_level)
 
 
 if __name__ == '__main__':
