@@ -21,7 +21,7 @@ DATASET_CHOICES = ['daily_rain', 'et_morton_actual', 'et_morton_potential', 'et_
                    'et_tall_crop', 'evap_morton_lake', 'evap_pan', 'evap_syn', 'max_temp', 'min_temp', 'monthly_rain',
                    'mslp', 'radiation', 'rh_tmax', 'vp', 'vp_deficit', 'ndvi', 'soil_moisture']
 DAILY_DATASETS = ['daily_rain', 'et_short_crop', 'max_temp', 'min_temp']
-EXCLUDE_DATES = {'ndvi': ['1994-05', '1994-06', '1994-07', '1994-08', '1994-09', '2003-08']}
+EXCLUDE_DATES = {'ndvi': ['1994-05', '1994-06', '1994-07', '1994-08', '1994-09', '2003-09']}
 
 
 def main():
