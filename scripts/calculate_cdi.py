@@ -240,15 +240,29 @@ def calc_cdi(dataset: xarray.Dataset, options):
 def calc_averaged_cdi(cdi_path, scale, output_path, logging_level):
     """
     Uses the CDI to calculate averages over a defined number of months (scale)
-    Can't have arguments directly with multiprocessing, they're packed as a tuple
     """
     # We expect warnings here about means of empty slices, just ignore them
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', category=RuntimeWarning)
         LOGGER.info('Calculating average over ' + str(scale) + ' months.')
-        with xarray.open_dataset(cdi_path, chunks={'time': 12}) as dataset:
+        with xarray.open_dataset(cdi_path) as dataset:
+            dataset = dataset.chunk({'time': 24})
             new_var_name = 'cdi_' + str(scale)
             dataset[new_var_name] = dataset['cdi'].rolling(time=scale).construct('window').mean('window')
+            # This operation doesn't account for missing time entries. We need to remove results around those time gaps
+            # that shouldn't have enough data to exist.
+            time = dataset['time'].values
+            dates_to_remove = []
+            for i in range(len(time)):
+                if i < scale:
+                    continue
+                # Get slice of dates for the size of the window
+                window_dates = time[i-scale+1:i+1]
+                first_date = window_dates[0].astype('<M8[M]').item()
+                last_date = window_dates[-1].astype('<M8[M]').item()
+                if ((last_date.year - first_date.year) * 12 + last_date.month - first_date.month) > scale:
+                    dates_to_remove.append(time[i])
+            dataset = dataset.drop(time=dates_to_remove)
             # Drop all input variables and anything else that slipped in, we ONLY want the new CDI.
             keys = dataset.keys()
             for key in keys:
