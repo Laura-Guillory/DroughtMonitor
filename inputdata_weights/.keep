@@ -1,0 +1,3 @@
+This folder should contain weights.nc, an optional file used to determine the weights for the four input datasets
+used to calculate the CDI. If this file does not exist, a default set of weights will be substituted. The file cannot
+be committed to the .git project due to its size.

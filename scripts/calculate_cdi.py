@@ -216,31 +216,42 @@ def calc_cdi(dataset: xarray.Dataset, options):
     """
     Calculates the CDI based on the dataset containing all four variables.
 
+    Will attempt to use custom weights for the input datasets obtained with a PCA analysis from
+    inputdata_weights/weights.nc. If you don't have this file, it will use the default weights at the beginning of
+    this file.
+
     :param dataset: Dataset containing soil moisture, ndvi, evapotranspiration and spi
     :param options: Object containing command-line options, used to get the name of the input variables
     :return: Dataset containing only the calculated CDI
     """
-    with xarray.open_dataset('D:/data/CDI weighting/converted/weighting.nc') as weights:
-        dataset['cdi'] = dataset.groupby('time.month').apply(calc_cdi_for_month, args=(weights, options))
-        # dataset['cdi'] = NDVI_WEIGHT * dataset[options.ndvi_var] \
-        #                  + SPI_WEIGHT * dataset[options.spi_var] \
-        #                  + ET_WEIGHT * (1 - dataset[options.et_var]) \
-        #                  + SM_WEIGHT * dataset[options.sm_var]
-        keys = dataset.keys()
-        # Drop all input variables and anything else that slipped in, we ONLY want the CDI.
-        for key in keys:
-            if key != 'cdi':
-                dataset = dataset.drop(key)
-        dataset = dataset.dropna('time', how='all')
-        dataset = dataset.drop('month', errors='ignore')
-        # For some reason latitude becomes a double while longitude remains a float... tidy that up.
-        dataset['latitude'] = dataset['latitude'].astype('f4')
-        dataset['latitude'].attrs['units'] = 'degrees_north'
-        dataset['longitude'].attrs['units'] = 'degrees_east'
-        return dataset
+    try:
+        with xarray.open_dataset('inputdata_weights/weights.nc') as weights:
+            dataset['cdi'] = dataset.groupby('time.month').apply(calc_cdi_for_month, args=(weights, options))
+            dataset = dataset.drop('month', errors='ignore')
+    except FileNotFoundError:
+        dataset['cdi'] = NDVI_WEIGHT * dataset[options.ndvi_var] \
+                         + SPI_WEIGHT * dataset[options.spi_var] \
+                         + ET_WEIGHT * (1 - dataset[options.et_var]) \
+                         + SM_WEIGHT * dataset[options.sm_var]
+    keys = dataset.keys()
+    # Drop all input variables and anything else that slipped in, we ONLY want the CDI.
+    for key in keys:
+        if key != 'cdi':
+            dataset = dataset.drop(key)
+    dataset = dataset.dropna('time', how='all')
+    # For some reason latitude becomes a double while longitude remains a float... tidy that up.
+    dataset['latitude'] = dataset['latitude'].astype('f4')
+    dataset['latitude'].attrs['units'] = 'degrees_north'
+    dataset['longitude'].attrs['units'] = 'degrees_east'
+    return dataset
 
 
 def calc_cdi_for_month(dataset: xarray.Dataset, weights, options):
+    """
+    Designed to be used with a groupby().apply() operation.
+    Calculates the CDI for one month of the year (January, February, etc.), since the weights applied to the input
+    datasets are different for each month.
+    """
     month = dataset.time.values[0].astype('<M8[M]').item().month
     ndvi_weight = weights.sel(dataset='ndvi', month=month)\
         .sel(latitude=dataset.latitude, longitude=dataset.longitude, method='nearest', tolerance=0.01)\
