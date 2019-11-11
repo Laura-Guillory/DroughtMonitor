@@ -226,6 +226,8 @@ def calc_cdi(dataset: xarray.Dataset, options):
     """
     try:
         with xarray.open_dataset('inputdata_weights/weights.nc') as weights:
+            weights = weights.sel(latitude=dataset.latitude, longitude=dataset.longitude, method='nearest',
+                                  tolerance=0.01).reindex_like(dataset, method='nearest', tolerance=0.01)
             dataset['cdi'] = dataset.groupby('time.month').apply(calc_cdi_for_month, args=(weights, options))
             dataset = dataset.drop('month', errors='ignore')
     except FileNotFoundError:
@@ -253,18 +255,10 @@ def calc_cdi_for_month(dataset: xarray.Dataset, weights, options):
     datasets are different for each month.
     """
     month = dataset.time.values[0].astype('<M8[M]').item().month
-    ndvi_weight = weights.sel(dataset='ndvi', month=month)\
-        .sel(latitude=dataset.latitude, longitude=dataset.longitude, method='nearest', tolerance=0.01)\
-        .reindex_like(dataset, method='nearest', tolerance=0.01)
-    spi_weight = weights.sel(dataset='spi', month=month)\
-        .sel(latitude=dataset.latitude, longitude=dataset.longitude, method='nearest', tolerance=0.01)\
-        .reindex_like(dataset, method='nearest', tolerance=0.01)
-    et_weight = weights.sel(dataset='et', month=month)\
-        .sel(latitude=dataset.latitude, longitude=dataset.longitude, method='nearest', tolerance=0.01)\
-        .reindex_like(dataset, method='nearest', tolerance=0.01)
-    sm_weight = weights.sel(dataset='sm', month=month)\
-        .sel(latitude=dataset.latitude, longitude=dataset.longitude, method='nearest', tolerance=0.01)\
-        .reindex_like(dataset, method='nearest', tolerance=0.01)
+    ndvi_weight = weights.sel(dataset='ndvi', month=month)
+    spi_weight = weights.sel(dataset='spi', month=month)
+    et_weight = weights.sel(dataset='et', month=month)
+    sm_weight = weights.sel(dataset='sm', month=month)
     dataset['cdi'] = dataset[options.ndvi_var] * ndvi_weight.weight \
                      + dataset[options.spi_var] * spi_weight.weight \
                      + (1 - dataset[options.et_var]) * et_weight.weight \
