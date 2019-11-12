@@ -23,10 +23,10 @@ be filled in with a NaN value. If one or more inputs are missing for certain dat
 result.
 """
 
-NDVI_WEIGHT = 0.2
-SPI_WEIGHT = 0.4
-ET_WEIGHT = 0.2
-SM_WEIGHT = 0.2
+NDVI_WEIGHT = 0.11792997
+SPI_WEIGHT = 0.3153617
+ET_WEIGHT = 0.25709686
+SM_WEIGHT = 0.30961144
 
 
 def main():
