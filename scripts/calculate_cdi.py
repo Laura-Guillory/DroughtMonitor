@@ -231,6 +231,8 @@ def calc_cdi(dataset: xarray.Dataset, options):
             dataset['cdi'] = dataset.groupby('time.month').apply(calc_cdi_for_month, args=(weights, options))
             dataset = dataset.drop('month', errors='ignore')
     except FileNotFoundError:
+        LOGGER.warning('File for custom weightings not found at inputdata_weights/weights.nc. Substituting approximate '
+                       'values. If this is not your intention, please obtain the weights.nc file.')
         dataset['cdi'] = NDVI_WEIGHT * dataset[options.ndvi_var] \
                          + SPI_WEIGHT * dataset[options.spi_var] \
                          + ET_WEIGHT * (1 - dataset[options.et_var]) \
