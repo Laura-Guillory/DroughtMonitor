@@ -1,4 +1,4 @@
-from matplotlib.colors import ListedColormap
+from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 from matplotlib import cm
 import numpy
 
@@ -21,3 +21,10 @@ def get_colormap(name):
         ))
         newcmp = ListedColormap(newcolors, name='CDI')
         return cm.get_cmap(newcmp)
+    if name == 'DroughtOutlook':
+        colours = [(255/255, 255/255, 255/255),
+                   (232/255, 201/255, 60/255),
+                   (110/255, 85/255, 75/255),
+                   (100/255, 180/255, 80/255),
+                   (190/255, 225/255, 140/255)]
+        return LinearSegmentedColormap.from_list('DroughtOutlook', colours)

@@ -265,7 +265,7 @@ def calc_cdi_for_month(dataset: xarray.Dataset, weights, options):
                      + dataset[options.spi_var] * spi_weight.weight \
                      + (1 - dataset[options.et_var]) * et_weight.weight \
                      + dataset[options.sm_var] * sm_weight.weight
-    dataset = dataset.drop('month')
+    dataset = dataset.drop('month', errors='ignore')
     return dataset['cdi']
 
 
