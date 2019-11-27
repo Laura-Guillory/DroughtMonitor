@@ -23,8 +23,9 @@ def get_colormap(name):
         return cm.get_cmap(newcmp)
     if name == 'DroughtOutlook':
         colours = [(255/255, 255/255, 255/255),
+                   (17/255, 130/255, 0/255),
+                   (190/255, 225/255, 140/255),
                    (232/255, 201/255, 60/255),
-                   (110/255, 85/255, 75/255),
-                   (100/255, 180/255, 80/255),
-                   (190/255, 225/255, 140/255)]
+                   (100/255, 70/255, 45/255),
+                   (235/255, 120/255, 45/255)]
         return LinearSegmentedColormap.from_list('DroughtOutlook', colours)
