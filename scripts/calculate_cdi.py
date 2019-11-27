@@ -21,6 +21,12 @@ percentiles, actual values are ideal.
 Data from all four inputs are required. In the event that one or more are missing for a coordinate, that coordinate will
 be filled in with a NaN value. If one or more inputs are missing for certain dates, that date will be excluded from the 
 result.
+
+The steps taken to calculate the CDI are as follows:
+1. Percentile rank all the input datasets (NDVI, ET, SM, SPI)
+2. Do a weighted average of these four inputs
+3. Percentile rank the resulting CDI
+4. (Optional) Average the resulting CDI over a range of desired timescales (e.g. 3 months, 6 months, 9 months, etc.)
 """
 
 NDVI_WEIGHT = 0.11792997
@@ -69,9 +75,8 @@ def main():
     # Combine the percentile ranked data into a CDI
     with xarray.open_mfdataset(ranked_files, chunks={'time': 10}, preprocess=standardise_dataset,
                                combine='by_coords') as combined_dataset:
-        result = calc_cdi(combined_dataset, options)
+        calc_cdi(combined_dataset, options)
         cdi_temp_path = options.output_file_base + '1.nc.temp'
-        utils.save_to_netcdf(result, cdi_temp_path, logging_level=options.verbose)
         for scale in options.scales:
             if scale == 1:
                 continue
@@ -214,7 +219,8 @@ def get_options():
 
 def calc_cdi(dataset: xarray.Dataset, options):
     """
-    Calculates the CDI based on the dataset containing all four variables.
+    Calculates the CDI based on the dataset containing all four variables. The CDI is a weighted average of these
+    variables. The CDI is also percentile ranked at the end to ensure an even distribution.
 
     Will attempt to use custom weights for the input datasets obtained with a PCA analysis from
     inputdata_weights/weights.nc. If you don't have this file, it will use the default weights at the beginning of
@@ -224,6 +230,7 @@ def calc_cdi(dataset: xarray.Dataset, options):
     :param options: Object containing command-line options, used to get the name of the input variables
     :return: Dataset containing only the calculated CDI
     """
+    LOGGER.info('Calculating CDI.')
     try:
         with xarray.open_dataset('inputdata_weights/weights.nc') as weights:
             weights = weights.sel(latitude=dataset.latitude, longitude=dataset.longitude, method='nearest',
@@ -247,7 +254,12 @@ def calc_cdi(dataset: xarray.Dataset, options):
     dataset['latitude'] = dataset['latitude'].astype('f4')
     dataset['latitude'].attrs['units'] = 'degrees_north'
     dataset['longitude'].attrs['units'] = 'degrees_east'
-    return dataset
+    # Percentile rank after finished.
+    temp_cdi_path = options.output_file_base + '1_unranked.temp'
+    utils.save_to_netcdf(dataset, temp_cdi_path)
+    percentile_rank_dataset((temp_cdi_path, options.output_file_base + '1.nc.temp', logging.INFO, 'cdi'))
+    os.remove(temp_cdi_path)
+    return
 
 
 def calc_cdi_for_month(dataset: xarray.Dataset, weights, options):
