@@ -72,7 +72,8 @@ def get_options():
     )
     parser.add_argument(
         '--vars',
-        help='Which variables in the file to percentile rank. If not present, will rank all variables found.'
+        help='Which variables in the file to percentile rank. If not present, will rank all variables found.',
+        nargs="+"
     )
     parser.add_argument(
         '-v', '--verbose',
