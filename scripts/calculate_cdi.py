@@ -3,7 +3,7 @@ import xarray
 from datetime import datetime
 import utils
 import logging
-from percentile_rank import percentile_rank
+from percentile_rank import percentile_rank_new as percentile_rank
 import os
 import multiprocessing
 import warnings
@@ -109,10 +109,12 @@ def percentile_rank_dataset(args):
     Can't have arguments directly with multiprocessing, they're packed as a tuple
     """
     input_path, output_path, verbosity, var = args
-    with xarray.open_dataset(input_path) as dataset:
-        ranked_dataset = percentile_rank(dataset, logging_level=verbosity, rank_vars=[var])
-        ranked_dataset = utils.truncate_time_dim(ranked_dataset)
-        utils.save_to_netcdf(ranked_dataset, output_path, logging_level=verbosity)
+    percentile_rank(input_path, output_path, logging_level=verbosity, rank_vars=[var])
+    with xarray.open_dataset(output_path, chunks={'time': 10}) as dataset:
+        dataset = utils.truncate_time_dim(dataset)
+        utils.save_to_netcdf(dataset, output_path + '2')
+    os.remove(output_path)
+    os.rename(output_path + '2', output_path)
 
 
 def standardise_dataset(dataset: xarray.Dataset):

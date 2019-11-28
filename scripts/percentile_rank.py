@@ -1,7 +1,9 @@
 import argparse
 import xarray
+import netCDF4
 from datetime import datetime
 import os
+import shutil
 import scipy.stats
 import logging
 import numpy
@@ -132,6 +134,50 @@ def percentile_rank(dataset, rank_vars=None, logging_level=logging.WARN):
     # Drop unnecessary empty time slices
     dataset = dataset.dropna('time', how='all')
     return dataset
+
+
+def percentile_rank_new(input_path, output_path, rank_vars=None, logging_level=logging.WARN):
+    LOGGER.setLevel(logging_level)
+    shutil.copyfile(input_path, output_path)
+    dataset = netCDF4.Dataset(output_path, mode='a')
+    lon, lat = utils.get_lon_lat_names(dataset)
+    num_months = len(dataset.dimensions['time'])
+    num_rows = len(dataset.dimensions[lat])
+    num_columns = len(dataset.dimensions[lon])
+    et_dates = numpy.array(dataset.variables['time'])[:]
+
+    for month_of_year in range(0, 12):
+        month = month_of_year  # set i equal to m for counting
+        num_years = int(num_months / 12)  # find number of years in the dataset
+        if month_of_year < num_months % 12:
+            num_years = num_years + 1
+        month_et = numpy.full([num_years, num_rows, num_columns], numpy.nan)
+        date_list = []
+        i_list = []
+
+        for year in range(0, num_years):
+            month_et[year, :, :] = dataset.variables[rank_vars[0]][month, :, :]
+            date_list.append(et_dates[month])
+            i_list.append(month)
+            month = month + 12
+
+        m_month_et = numpy.ma.masked_invalid(month_et)
+        r_month_et = numpy.empty(m_month_et.shape)
+        for row in range(0, num_rows):
+            for column in range(0, num_columns):
+                if m_month_et[:, row, column].count() == 0:
+                    r_month_et[:, row, column] = 0
+                else:
+                    r_month_et[:, row, column] = scipy.stats.mstats.rankdata(m_month_et[:, row, column],
+                                                                             use_missing=False)
+        m_r_month_et = numpy.ma.array(r_month_et, mask=m_month_et.mask)
+        pr_month_et = (m_r_month_et - 1) / (m_r_month_et.count(axis=0))
+        m_pr_month_et = numpy.ma.array(pr_month_et, mask=m_month_et.mask)
+
+        for ix, ixf in enumerate(i_list):
+            dataset['time'][ixf] = date_list[ix]
+            dataset[rank_vars[0]][ixf] = m_pr_month_et[ix]
+    dataset.close()
 
 
 def calc_percentiles_for_month(dataarray):
