@@ -3,7 +3,7 @@ import xarray
 from datetime import datetime
 import utils
 import logging
-from percentile_rank import percentile_rank_new as percentile_rank
+from percentile_rank import percentile_rank
 import os
 import multiprocessing
 import warnings
@@ -94,8 +94,8 @@ def main():
         os.rename(cdi_temp_path, cdi_path)
 
     # Remove temporary percentile ranked files
-    for file in ranked_files:
-        os.remove(file)
+    # for file in ranked_files:
+    #     os.remove(file)
 
     end_time = datetime.now()
     LOGGER.info('End time: ' + str(end_time))
@@ -109,12 +109,14 @@ def percentile_rank_dataset(args):
     Can't have arguments directly with multiprocessing, they're packed as a tuple
     """
     input_path, output_path, verbosity, var = args
-    percentile_rank(input_path, output_path, logging_level=verbosity, rank_vars=[var])
-    with xarray.open_dataset(output_path, chunks={'time': 10}) as dataset:
+    with xarray.open_dataset(input_path, chunks={'time': 10}) as dataset:
         dataset = utils.truncate_time_dim(dataset)
-        utils.save_to_netcdf(dataset, output_path + '2')
-    os.remove(output_path)
-    os.rename(output_path + '2', output_path)
+        try:
+            dataset = dataset.transpose('time', 'lat', 'lon')
+        except ValueError:
+            pass
+        utils.save_to_netcdf(dataset, output_path)
+    percentile_rank(output_path, logging_level=verbosity, rank_vars=[var])
 
 
 def standardise_dataset(dataset: xarray.Dataset):
@@ -257,10 +259,15 @@ def calc_cdi(dataset: xarray.Dataset, options):
     dataset['latitude'].attrs['units'] = 'degrees_north'
     dataset['longitude'].attrs['units'] = 'degrees_east'
     # Percentile rank after finished.
-    temp_cdi_path = options.output_file_base + '1_unranked.temp'
+    attrs = {var: dataset[var].attrs for var in set(dataset.keys()).union(set(dataset.dims))}
+    stacked = dataset.cdi.stack(x=['latitude', 'longitude', 'time'])
+    stacked = stacked.compute()
+    stacked = stacked.rank(dim='x', pct=True, keep_attrs=False)
+    dataset['cdi'] = stacked.unstack(dim='x')
+    for key in attrs:
+        dataset[key].attrs = attrs[key]
+    temp_cdi_path = options.output_file_base + '1.nc.temp'
     utils.save_to_netcdf(dataset, temp_cdi_path)
-    percentile_rank_dataset((temp_cdi_path, options.output_file_base + '1.nc.temp', logging.INFO, 'cdi'))
-    os.remove(temp_cdi_path)
     return
 
 
