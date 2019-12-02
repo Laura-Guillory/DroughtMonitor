@@ -41,7 +41,8 @@ def main():
 def download_datasets(path, datasets):
     for dataset in datasets:
         LOGGER.info('Downloading {} dataset.'.format(dataset))
-        current_year = datetime.now().year
+        current_month = datetime.now().month - 1 if datetime.now().month > 1 else 12
+        current_year = datetime.now().year if datetime.now().month > 1 else datetime.now().year - 1
         if dataset == 'ndvi':
             for year in range(1992, current_year + 1):
                 for month in range(1, 13):
@@ -53,7 +54,9 @@ def download_datasets(path, datasets):
                     destination = path.format(dataset=dataset, date=date, filetype='txt.Z')
                     url = DOWNLOAD_URLS['NDVI'].format(date_range=date_range)
                     # Always redownload most recent year
-                    if file_already_downloaded(destination) and year != datetime.now().year:
+                    if file_already_downloaded(destination) and (year != current_year or month != current_month):
+                        continue
+                    if year == current_year and month > current_month: # The future
                         continue
                     try_to_download(url, destination)
         elif dataset == 'soil_moisture':
