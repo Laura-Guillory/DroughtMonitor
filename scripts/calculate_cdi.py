@@ -278,14 +278,11 @@ def calc_cdi_for_month(dataset: xarray.Dataset, weights, options):
     datasets are different for each month.
     """
     month = dataset.time.values[0].astype('<M8[M]').item().month
-    ndvi_weight = weights.sel(dataset='ndvi', month=month)
-    spi_weight = weights.sel(dataset='spi', month=month)
-    et_weight = weights.sel(dataset='et', month=month)
-    sm_weight = weights.sel(dataset='sm', month=month)
-    dataset['cdi'] = dataset[options.ndvi_var] * ndvi_weight.weight \
-                     + dataset[options.spi_var] * spi_weight.weight \
-                     + (1 - dataset[options.et_var]) * et_weight.weight \
-                     + dataset[options.sm_var] * sm_weight.weight
+    weights = weights.sel(month=month)
+    dataset['cdi'] = dataset[options.ndvi_var] * weights.ndvi \
+                     + dataset[options.spi_var] * weights.spi \
+                     + (1 - dataset[options.et_var]) * weights.et \
+                     + dataset[options.sm_var] * weights.sm
     dataset = dataset.drop('month', errors='ignore')
     return dataset['cdi']
 
