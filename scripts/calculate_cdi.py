@@ -29,10 +29,10 @@ The steps taken to calculate the CDI are as follows:
 4. (Optional) Average the resulting CDI over a range of desired timescales (e.g. 3 months, 6 months, 9 months, etc.)
 """
 
-NDVI_WEIGHT = 0.11792997
-SPI_WEIGHT = 0.3153617
-ET_WEIGHT = 0.25709686
-SM_WEIGHT = 0.30961144
+NDVI_WEIGHT = 0.1106
+SPI_WEIGHT = 0.3206
+ET_WEIGHT = 0.2470
+SM_WEIGHT = 0.3218
 
 
 def main():
