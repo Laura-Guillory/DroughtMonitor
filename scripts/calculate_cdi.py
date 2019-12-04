@@ -94,8 +94,8 @@ def main():
         os.rename(cdi_temp_path, cdi_path)
 
     # Remove temporary percentile ranked files
-    # for file in ranked_files:
-    #     os.remove(file)
+    for file in ranked_files:
+        os.remove(file)
 
     end_time = datetime.now()
     LOGGER.info('End time: ' + str(end_time))
