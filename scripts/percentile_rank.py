@@ -7,6 +7,7 @@ import scipy.stats
 import logging
 import numpy
 import utils
+import shutil
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
 
@@ -28,20 +29,11 @@ def main():
     LOGGER.setLevel(options.verbose)
     start_time = datetime.now()
     LOGGER.info('Starting time: ' + str(start_time))
-    dataset = xarray.open_dataset(options.input)
-    result = percentile_rank(dataset, options.vars, options.verbose)
-
     if options.output and options.output is not options.input:
-        utils.save_to_netcdf(result, options.output, logging_level=options.verbose)
+        shutil.copyfile(options.input, options.output)
     else:
-        # xarray uses lazy loading from disk so overwriting the input file isn't possible without forcing a full load
-        # into memory, which is infeasible with large datasets. Instead, save to a temp file, then remove the original
-        # and rename the temp file to the original.
-        temp_filename = options.output + '_temp'
-        utils.save_to_netcdf(result, temp_filename, logging_level=options.verbose)
-        dataset.close()
-        os.remove(options.input)
-        os.rename(temp_filename, options.output)
+        options.output = options.input
+    percentile_rank(options.output, options.vars, options.verbose)
 
     end_time = datetime.now()
     LOGGER.info('End time: ' + str(end_time))
@@ -108,7 +100,10 @@ def percentile_rank(file_path, rank_vars=None, logging_level=logging.WARN):
         i_list = []
 
         for year in range(0, num_years):
-            month_et[year, :, :] = dataset.variables[rank_vars[0]][month, :, :]
+            try:
+                month_et[year, :, :] = dataset.variables[rank_vars[0]][month, :, :]
+            except ValueError:
+                raise ValueError('Dimensions must be in order: time, latitude, longitude. Try using utils/transpose.py')
             date_list.append(et_dates[month])
             i_list.append(month)
             month = month + 12
