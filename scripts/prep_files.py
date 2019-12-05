@@ -166,6 +166,7 @@ def ascii_2_netcdf(dataset_name, file_path, logging_level=logging.INFO):
     # Convert files to netcdf
     dates = []
     input_paths = glob.glob(file_path.format(dataset=dataset_name, year='*', filetype='txt'))
+    input_paths.sort()
     for path in input_paths:
         file_name = os.path.basename(path)
         date = file_name.split('.')[0]
