@@ -18,6 +18,7 @@ DOWNLOADED_DATASETS = ['daily_rain', 'et_morton_actual', 'et_morton_potential', 
                        'monthly_rain', 'mslp', 'radiation', 'rh_tmax', 'vp', 'vp_deficit', 'ndvi', 'soil_moisture']
 ASCII_DATASETS = ['ndvi']
 COMPUTED_DATASETS = ['monthly_avg_temp', 'monthly_et_short_crop']
+CALC_MORE_TIME_PERIODS = ['monthly_et_short_crop', 'ndvi', 'soil_moisture']
 OTHER_DATASETS = ['soil_moisture']
 DEFAULT_PATH = 'data/{dataset}/{year}.{dataset}.{filetype}'
 DAILY_DATASETS = ['daily_rain', 'et_short_crop', 'max_temp', 'min_temp']
@@ -32,15 +33,19 @@ def main():
         # Create folder for results
         os.makedirs(os.path.dirname(options.path.format(dataset=dataset_name, year='', filetype='-')), exist_ok=True)
         if dataset_name in ASCII_DATASETS:
-            ascii_2_netcdf(dataset_name, options.path, logging_level=options.verbose)
+            ascii_2_netcdf(dataset_name, options.path)
         elif dataset_name not in COMPUTED_DATASETS + OTHER_DATASETS:
-            merge_years(dataset_name, options.path, logging_level=options.verbose)
+            merge_years(dataset_name, options.path)
     if 'monthly_avg_temp' in options.datasets:
         calc_monthly_avg_temp(options.path, logging_level=options.verbose)
     if 'monthly_et_short_crop' in options.datasets:
         calc_monthly_et_short_crop(options.path, logging_level=options.verbose)
     if 'soil_moisture' in options.datasets:
-        combine_soil_moisture(options.path, logging_level=options.verbose)
+        combine_soil_moisture(options.path)
+    for dataset_name in options.datasets:
+        if dataset_name in CALC_MORE_TIME_PERIODS:
+            for scale in [3, 6, 9, 12]:
+                avg_over_period(dataset_name, options.path, scale)
     end_time = datetime.now()
     LOGGER.info('End time: ' + str(end_time))
     elapsed_time = end_time - start_time
@@ -86,7 +91,7 @@ def get_options():
     return args
 
 
-def calc_monthly_avg_temp(file_path, logging_level=logging.INFO):
+def calc_monthly_avg_temp(file_path, logging_level=logging.WARNING):
     # Too much data to merge min_temp and max_temp, then calculate average temperature for the whole thing
     # Convert all to monthly, then merge and calculate avg temperature
     input_datasets = ['max_temp', 'min_temp']
@@ -106,7 +111,7 @@ def calc_monthly_avg_temp(file_path, logging_level=logging.INFO):
                 monthly_dataset[input_dataset].attrs['units'] = dataset[input_dataset].units
                 output_file_path = path.replace(input_dataset, 'monthly_' + input_dataset)
                 utils.save_to_netcdf(monthly_dataset, output_file_path, logging_level=logging.WARN)
-        merge_years('monthly_' + input_dataset, file_path, logging_level=logging_level)
+        merge_years('monthly_' + input_dataset, file_path)
     LOGGER.info('Calculating monthly average temperature.')
     files = [get_merged_dataset_path(file_path, 'monthly_' + x) for x in input_datasets]
     with xarray.open_mfdataset(files, chunks={'time': 10}, combine='by_coords') as dataset:
@@ -115,7 +120,7 @@ def calc_monthly_avg_temp(file_path, logging_level=logging.INFO):
         # Dimensions must be in this order to be accepted by the climate indices tool
         dataset = dataset.drop('max_temp').drop('min_temp').drop('crs', errors='ignore').transpose('lat', 'lon', 'time')
         output_file_path = get_merged_dataset_path(file_path, 'monthly_avg_temp')
-        utils.save_to_netcdf(dataset, output_file_path, logging_level=logging_level)
+        utils.save_to_netcdf(dataset, output_file_path)
 
 
 def calc_monthly_et_short_crop(file_path, logging_level=logging.INFO):
@@ -131,11 +136,11 @@ def calc_monthly_et_short_crop(file_path, logging_level=logging.INFO):
             monthly_et = utils.truncate_time_dim(monthly_et)
             monthly_et['et_short_crop'].attrs['units'] = dataset.et_short_crop.units
             output_file_path = et_path.replace('et_short_crop', 'monthly_et_short_crop')
-            utils.save_to_netcdf(monthly_et, output_file_path, logging_level=logging.WARN)
-    merge_years('monthly_et_short_crop', file_path, logging_level=logging_level)
+            utils.save_to_netcdf(monthly_et, output_file_path)
+    merge_years('monthly_et_short_crop', file_path)
 
 
-def merge_years(dataset_name, file_path, logging_level=logging.INFO):
+def merge_years(dataset_name, file_path):
     LOGGER.info('Merging files for: ' + dataset_name)
     output_path = get_merged_dataset_path(file_path, dataset_name)
     inputs_path = file_path.format(dataset=dataset_name, year='*', filetype='nc')
@@ -145,7 +150,7 @@ def merge_years(dataset_name, file_path, logging_level=logging.INFO):
         if dataset_name not in DAILY_DATASETS:
             dataset = utils.truncate_time_dim(dataset)
         encoding = {'time': {'units': 'days since 1889-01', '_FillValue': None}}
-        utils.save_to_netcdf(dataset, output_path, encoding=encoding, logging_level=logging_level)
+        utils.save_to_netcdf(dataset, output_path, encoding=encoding)
 
 
 def get_merged_dataset_path(file_path, dataset_name):
@@ -153,7 +158,7 @@ def get_merged_dataset_path(file_path, dataset_name):
     return os.path.dirname(merged_file_path) + '/full_' + dataset_name + '.nc'
 
 
-def ascii_2_netcdf(dataset_name, file_path, logging_level=logging.INFO):
+def ascii_2_netcdf(dataset_name, file_path):
     LOGGER.info('Unpacking ASCII and merging files for: ' + dataset_name)
     # Unzip all files
     input_paths = glob.glob(file_path.format(dataset=dataset_name, year='*', filetype='txt.Z'))
@@ -180,10 +185,10 @@ def ascii_2_netcdf(dataset_name, file_path, logging_level=logging.INFO):
     dataset['latitude'].attrs['units'] = 'degrees_north'
     # Save as one file
     output_file_path = get_merged_dataset_path(file_path, dataset_name)
-    utils.save_to_netcdf(dataset, output_file_path, logging_level=logging_level)
+    utils.save_to_netcdf(dataset, output_file_path)
 
 
-def combine_soil_moisture(file_path, logging_level=logging.INFO):
+def combine_soil_moisture(file_path):
     # Soil moisture is given as two files - one is historical data and the other is recent data downloaded from BoM.
     # There is some overlap. We need to combine these files while giving precedence to the recent data downloaded from
     # BoM
@@ -200,7 +205,7 @@ def combine_soil_moisture(file_path, logging_level=logging.INFO):
     historical_dataset = historical_dataset.drop('time_bnds', errors='ignore')
     recent_dataset = xarray.open_dataset(recent_dataset_path, chunks={'time': 10})
     combined = recent_dataset.combine_first(historical_dataset)
-    utils.save_to_netcdf(combined, output_file_path, logging_level=logging_level)
+    utils.save_to_netcdf(combined, output_file_path)
 
 
 def drop_incomplete_months(dataset):
@@ -213,6 +218,39 @@ def drop_incomplete_months(dataset):
         )
         return dataset.sel(time=slice('1890-01-01', last_valid_day))
     return dataset
+
+
+def avg_over_period(dataset_name, file_path, scale):
+    LOGGER.info('Calculating {} over {} months.'.format(dataset_name, scale))
+    new_var_name = '{}_{}'.format(dataset_name, scale)
+    input_path = get_merged_dataset_path(file_path, dataset_name)
+    output_path = get_merged_dataset_path(file_path, new_var_name)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', category=RuntimeWarning)
+        with xarray.open_dataset(input_path, chunks={'time': 12}) as dataset:
+            dataset[new_var_name] = dataset[dataset_name].rolling(time=scale).construct('window').mean('window')
+            # This operation doesn't account for missing time entries. We need to remove results around those time gaps
+            # that shouldn't have enough data to exist.
+            time = dataset['time'].values
+            dates_to_remove = []
+            for i in range(len(time)):
+                if i < scale:
+                    dates_to_remove.append(time[i])
+                    continue
+                # Get slice of dates for the size of the window
+                window_dates = time[i - scale + 1:i + 1]
+                first_date = window_dates[0].astype('<M8[M]').item()
+                last_date = window_dates[-1].astype('<M8[M]').item()
+                if ((last_date.year - first_date.year) * 12 + last_date.month - first_date.month) > scale:
+                    dates_to_remove.append(time[i])
+            dataset = dataset.drop(time=dates_to_remove)
+            # Drop all input variables and anything else that slipped in, we ONLY want the new CDI.
+            keys = dataset.keys()
+            for key in keys:
+                if key != new_var_name:
+                    dataset = dataset.drop(key)
+            dataset = dataset.dropna('time', how='all')
+            utils.save_to_netcdf(dataset, output_path)
 
 
 if __name__ == '__main__':

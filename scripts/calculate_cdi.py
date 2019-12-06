@@ -76,22 +76,6 @@ def main():
     with xarray.open_mfdataset(ranked_files, chunks={'time': 10}, preprocess=standardise_dataset,
                                combine='by_coords') as combined_dataset:
         calc_cdi(combined_dataset, options)
-        cdi_temp_path = options.output_file_base + '1.nc.temp'
-        for scale in options.scales:
-            if scale == 1:
-                continue
-            else:
-                output_path = options.output_file_base + str(scale) + '.nc'
-                calc_averaged_cdi(cdi_temp_path, scale, output_path, options.verbose)
-
-    # Remove 1 month CDI if it wasn't wanted
-    if 1 not in options.scales:
-        os.remove(cdi_temp_path)
-    else:
-        cdi_path = options.output_file_base + '1.nc'
-        if os.path.exists(cdi_path):
-            os.remove(cdi_path)
-        os.rename(cdi_temp_path, cdi_path)
 
     # Remove temporary percentile ranked files
     for file in ranked_files:
@@ -141,7 +125,7 @@ def get_options():
     Gets command line arguments and returns them.
     Options are accessed via options.ndvi, options.output, etc.
 
-    Required arguments: ndvi, ndvi_var, spi, spi_var, et, et_var, sm, sm_var, output_file_base
+    Required arguments: ndvi, ndvi_var, spi, spi_var, et, et_var, sm, sm_var, output
     Optional arguments: verbose (v), multiprocessing, scales
 
     Run this with the -h (help) argument for more detailed information. (python calculate_cdi.py -h)
@@ -190,9 +174,8 @@ def get_options():
         required=True
     )
     parser.add_argument(
-        '--output_file_base',
-        help='Base file name for all output files. Each computed scale for the CDI will have a corresponding output '
-             'file that begins with thise base name plus a month scale.',
+        '--output',
+        help='Where to save the output file.',
         required=True
     )
     parser.add_argument(
@@ -209,13 +192,6 @@ def get_options():
         choices=["single", "all_but_one", "all"],
         required=False,
         default="all_but_one",
-    )
-    parser.add_argument(
-        '--scales',
-        help='The number of months to average the results over. Multiple values can be given.',
-        default=[1],
-        type=int,
-        nargs="+"
     )
     args = parser.parse_args()
     return args
@@ -234,7 +210,6 @@ def calc_cdi(dataset: xarray.Dataset, options):
     :param options: Object containing command-line options, used to get the name of the input variables
     :return: Dataset containing only the calculated CDI
     """
-    LOGGER.info('Calculating CDI.')
     try:
         with xarray.open_dataset('inputdata_weights/weights.nc') as weights:
             weights = weights.sel(latitude=dataset.latitude, longitude=dataset.longitude, method='nearest',
@@ -266,8 +241,7 @@ def calc_cdi(dataset: xarray.Dataset, options):
     dataset['cdi'] = stacked.unstack(dim='x')
     for key in attrs:
         dataset[key].attrs = attrs[key]
-    temp_cdi_path = options.output_file_base + '1.nc.temp'
-    utils.save_to_netcdf(dataset, temp_cdi_path)
+    utils.save_to_netcdf(dataset, options.output)
     return
 
 
@@ -285,41 +259,6 @@ def calc_cdi_for_month(dataset: xarray.Dataset, weights, options):
                      + dataset[options.sm_var] * weights.sm
     dataset = dataset.drop('month', errors='ignore')
     return dataset['cdi']
-
-
-def calc_averaged_cdi(cdi_path, scale, output_path, logging_level):
-    """
-    Uses the CDI to calculate averages over a defined number of months (scale)
-    """
-    # We expect warnings here about means of empty slices, just ignore them
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore', category=RuntimeWarning)
-        LOGGER.info('Calculating average over ' + str(scale) + ' months.')
-        with xarray.open_dataset(cdi_path) as dataset:
-            dataset = dataset.chunk({'time': 24})
-            new_var_name = 'cdi_' + str(scale)
-            dataset[new_var_name] = dataset['cdi'].rolling(time=scale).construct('window').mean('window')
-            # This operation doesn't account for missing time entries. We need to remove results around those time gaps
-            # that shouldn't have enough data to exist.
-            time = dataset['time'].values
-            dates_to_remove = []
-            for i in range(len(time)):
-                if i < scale:
-                    continue
-                # Get slice of dates for the size of the window
-                window_dates = time[i-scale+1:i+1]
-                first_date = window_dates[0].astype('<M8[M]').item()
-                last_date = window_dates[-1].astype('<M8[M]').item()
-                if ((last_date.year - first_date.year) * 12 + last_date.month - first_date.month) > scale:
-                    dates_to_remove.append(time[i])
-            dataset = dataset.drop(time=dates_to_remove)
-            # Drop all input variables and anything else that slipped in, we ONLY want the new CDI.
-            keys = dataset.keys()
-            for key in keys:
-                if key != new_var_name:
-                    dataset = dataset.drop(key)
-            dataset = dataset.dropna('time', how='all')
-            utils.save_to_netcdf(dataset, output_path, logging_level=logging_level)
 
 
 if __name__ == '__main__':

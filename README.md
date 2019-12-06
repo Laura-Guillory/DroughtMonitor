@@ -172,15 +172,14 @@ Required arguments:
 | --et_var           | The name of the Evapotranspiration variable in the netCDF file.                                 |
 | --sm               | The path to the input Soil Moisture netCDF file.                                                |
 | --sm_var           | The name of the Soil Moisture variable in the netCDF file.                                      |
-| --output_file_base | Base file name for all output files. Each computed scale for the CDI will have a corresponding output file that begins with thise base name plus a month scale.
+| --output           | Where to save the output file.
 
 Optional arguments: 
 
 |||
 |--------------------|-------------------------------------------------------------------------------------------------|
 | -v, --verbose      | Increase output verbosity                                                                       |
-| --multiprocessing  | Number of processes to use in multiprocessing. Options: single, all_but_one, all. Defaults to all_but_one.|
-| --scales           | The number of months to average the results over. Multiple values can be given.                 |
+| --multiprocessing  | Number of processes to use in multiprocessing. Options: single, all_but_one, all. Defaults to all_but_one.|              |
 
 ### generate_maps.py
 
