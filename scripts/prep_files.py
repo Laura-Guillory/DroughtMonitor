@@ -37,9 +37,9 @@ def main():
         elif dataset_name not in COMPUTED_DATASETS + OTHER_DATASETS:
             merge_years(dataset_name, options.path)
     if 'monthly_avg_temp' in options.datasets:
-        calc_monthly_avg_temp(options.path, logging_level=options.verbose)
+        calc_monthly_avg_temp(options.path)
     if 'monthly_et_short_crop' in options.datasets:
-        calc_monthly_et_short_crop(options.path, logging_level=options.verbose)
+        calc_monthly_et_short_crop(options.path)
     if 'soil_moisture' in options.datasets:
         combine_soil_moisture(options.path)
     for dataset_name in options.datasets:
@@ -91,7 +91,7 @@ def get_options():
     return args
 
 
-def calc_monthly_avg_temp(file_path, logging_level=logging.WARNING):
+def calc_monthly_avg_temp(file_path):
     # Too much data to merge min_temp and max_temp, then calculate average temperature for the whole thing
     # Convert all to monthly, then merge and calculate avg temperature
     input_datasets = ['max_temp', 'min_temp']
@@ -123,7 +123,7 @@ def calc_monthly_avg_temp(file_path, logging_level=logging.WARNING):
         utils.save_to_netcdf(dataset, output_file_path)
 
 
-def calc_monthly_et_short_crop(file_path, logging_level=logging.INFO):
+def calc_monthly_et_short_crop(file_path):
     LOGGER.info('Calculating monthly short crop evapotranspiration.')
     # Too much data to merge et_short_crop and then calculate monthly.
     # So we calculate monthly for each individual file then merge
@@ -228,13 +228,14 @@ def avg_over_period(dataset_name, file_path, scale):
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', category=RuntimeWarning)
         with xarray.open_dataset(input_path, chunks={'time': 12}) as dataset:
-            dataset[new_var_name] = dataset[dataset_name].rolling(time=scale).construct('window').mean('window')
+            var = list(dataset.keys())[0]
+            dataset[new_var_name] = dataset[var].rolling(time=scale).construct('window').mean('window')
             # This operation doesn't account for missing time entries. We need to remove results around those time gaps
             # that shouldn't have enough data to exist.
             time = dataset['time'].values
             dates_to_remove = []
             for i in range(len(time)):
-                if i < scale:
+                if i < scale-1:
                     dates_to_remove.append(time[i])
                     continue
                 # Get slice of dates for the size of the window
