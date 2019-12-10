@@ -2,6 +2,7 @@ import xarray
 import argparse
 import os
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 import utils
 import glob
 import subprocess
@@ -204,6 +205,9 @@ def combine_soil_moisture(file_path):
         return
     historical_dataset = historical_dataset.drop('time_bnds', errors='ignore')
     recent_dataset = xarray.open_dataset(recent_dataset_path, chunks={'time': 10})
+    date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    date = date - relativedelta(months=1)
+    recent_dataset = recent_dataset.sel(time=slice('1800-01', date))
     combined = recent_dataset.combine_first(historical_dataset)
     utils.save_to_netcdf(combined, output_file_path)
 

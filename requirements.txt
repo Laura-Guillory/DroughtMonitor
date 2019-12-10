@@ -1,3 +1,4 @@
+python-dateutil
 xarray
 dask
 netCDF4
