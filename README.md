@@ -177,9 +177,10 @@ Required arguments:
 Optional arguments: 
 
 |||
-|--------------------|-------------------------------------------------------------------------------------------------|
-| -v, --verbose      | Increase output verbosity                                                                       |
-| --multiprocessing  | Number of processes to use in multiprocessing. Options: single, all_but_one, all. Defaults to all_but_one.|              |
+|--------------------|-----------------------------------------------------------------------------------------------------------|
+| -v, --verbose      | Increase output verbosity                                                                                 |
+| --multiprocessing  | Number of processes to use in multiprocessing. Options: single, all_but_one, all. Defaults to all_but_one.|
+| --weights          | Path for the file containing custom weightings for the weighted average performed on input datasets.      |
 
 ### generate_maps.py
 

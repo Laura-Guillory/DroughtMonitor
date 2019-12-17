@@ -3,4 +3,4 @@ venv/
 .idea/
 shapes/
 scratch/
-inputdata_weights/weighting.nc
+weights/

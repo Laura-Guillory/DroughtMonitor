@@ -6,7 +6,6 @@ import logging
 from percentile_rank import percentile_rank
 import os
 import multiprocessing
-import warnings
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -26,7 +25,6 @@ The steps taken to calculate the CDI are as follows:
 1. Percentile rank all the input datasets (NDVI, ET, SM, SPI)
 2. Do a weighted average of these four inputs
 3. Percentile rank the resulting CDI
-4. (Optional) Average the resulting CDI over a range of desired timescales (e.g. 3 months, 6 months, 9 months, etc.)
 """
 
 NDVI_WEIGHT = 0.1106
@@ -126,7 +124,7 @@ def get_options():
     Options are accessed via options.ndvi, options.output, etc.
 
     Required arguments: ndvi, ndvi_var, spi, spi_var, et, et_var, sm, sm_var, output
-    Optional arguments: verbose (v), multiprocessing, scales
+    Optional arguments: verbose (v), multiprocessing, scales, weights
 
     Run this with the -h (help) argument for more detailed information. (python calculate_cdi.py -h)
 
@@ -174,6 +172,11 @@ def get_options():
         required=True
     )
     parser.add_argument(
+        '--weights',
+        help='Path for the file containing custom weightings for the weighted average performed on input datasets.',
+        default=None
+    )
+    parser.add_argument(
         '--output',
         help='Where to save the output file.',
         required=True
@@ -202,23 +205,23 @@ def calc_cdi(dataset: xarray.Dataset, options):
     Calculates the CDI based on the dataset containing all four variables. The CDI is a weighted average of these
     variables. The CDI is also percentile ranked at the end to ensure an even distribution.
 
-    Will attempt to use custom weights for the input datasets obtained with a PCA analysis from
-    inputdata_weights/weights.nc. If you don't have this file, it will use the default weights at the beginning of
+    Will attempt to use custom weights for the input datasets obtained with a PCA analysis from --weights argument.
+    If you don't have this file, it will use the default weights at the beginning of
     this file.
 
     :param dataset: Dataset containing soil moisture, ndvi, evapotranspiration and spi
     :param options: Object containing command-line options, used to get the name of the input variables
     :return: Dataset containing only the calculated CDI
     """
-    try:
-        with xarray.open_dataset('inputdata_weights/weights.nc') as weights:
+    if options.weights is not None:
+        with xarray.open_dataset(options.weights) as weights:
             weights = weights.sel(latitude=dataset.latitude, longitude=dataset.longitude, method='nearest',
                                   tolerance=0.01).reindex_like(dataset, method='nearest', tolerance=0.01)
             dataset['cdi'] = dataset.groupby('time.month').apply(calc_cdi_for_month, args=(weights, options))
             dataset = dataset.drop('month', errors='ignore')
-    except FileNotFoundError:
-        LOGGER.warning('File for custom weightings not found at inputdata_weights/weights.nc. Substituting approximate '
-                       'values. If this is not your intention, please obtain the weights.nc file.')
+    else:
+        LOGGER.warning('--weights argument not provided. Substituting approximate values. If this is not your '
+                       'intention, please provide a custom weights file.')
         dataset['cdi'] = NDVI_WEIGHT * dataset[options.ndvi_var] \
                          + SPI_WEIGHT * dataset[options.spi_var] \
                          + ET_WEIGHT * (1 - dataset[options.et_var]) \
