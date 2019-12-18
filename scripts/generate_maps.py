@@ -1,25 +1,20 @@
-import numpy as np
+import cartopy
+from cartopy.io import shapereader
 import os
 import argparse
+import numpy
 from datetime import datetime
 import multiprocessing
 from astropy.convolution import convolve, Gaussian2DKernel
 import xarray
-from colormaps import get_colormap
 import utils
 import logging
-from mpl_toolkits.basemap import Basemap
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import matplotlib
 from matplotlib.font_manager import FontProperties
-from matplotlib.collections import PatchCollection
-from matplotlib.patches import Polygon
-matplotlib.use('TkAgg')
-from matplotlib import pyplot as plt, cm
+from matplotlib import pyplot
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
-
 
 TITLE_FONT = FontProperties(fname='fonts/Roboto-Medium.ttf', size=14)
 SUBTITLE_FONT = FontProperties(fname='fonts/Roboto-LightItalic.ttf', size=12)
@@ -110,17 +105,18 @@ def get_options():
         help='Sets the map\'s subtitle on the lower left.'
     )
     optional.add_argument(
-        '--colormap',
-        default='RdBu',
-        help='The color map of the map. See the following link for options: '
-             'https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html'
+        '--colours',
+        default=None,
+        nargs="+",
+        help='A list of hex colours to use for the map, from lowest value to highest. There should be one more colour '
+             'than there are levels.'
     )
     optional.add_argument(
-        '--colorbar_label',
-        help='The label above the colorbar legend (usually an abbreviation of the index name).'
+        '--colourbar_label',
+        help='The label above the colourbar legend (usually an abbreviation of the index name).'
     )
     optional.add_argument(
-        '--colorbar_ticklabels',
+        '--categories',
         help='Labels to replace the numbered levels on the colorbar.'
     )
     optional.add_argument(
@@ -137,21 +133,9 @@ def get_options():
         '--levels',
         help='If one number is given, it is the number of levels for the plotted variable shown in the map and '
              'colorbar. If multiple numbers are given, they will be used as a list to explicitly set each level.'
-             'Example: 8, or 0 1 2 3 4 5 6 7',
+             'Example: 8, or 0 1 2 3 4 5 6 7 8',
         nargs="+",
         type=float
-    )
-    optional.add_argument(
-        '--height',
-        help='Height of desired map domain in projection coordinates (meters). If not provided a default will be '
-             'estimated.',
-        type=int
-    )
-    optional.add_argument(
-        '--width',
-        help='Width of desired map domain in projection coordinates (meters). If not provided a default will be '
-             'estimated.',
-        type=int
     )
     optional.add_argument(
         '-p', '--prototype',
@@ -188,6 +172,7 @@ def generate_all_maps(options, number_of_worker_processes):
     Skips existing images unless the overwrite option is used.
 
     :param options:
+    :param number_of_worker_processes:
     :return:
     """
     # Create folder for results
@@ -195,14 +180,27 @@ def generate_all_maps(options, number_of_worker_processes):
 
     # Open netCDF file
     with xarray.open_dataset(options.netcdf, chunks={'time': 10}) as dataset:
+        # Get labels for latitude and longitude
+        lon_label, lat_label = utils.get_lon_lat_names(dataset)
+
+        latitude = {
+            'min': dataset[lat_label].min().item(),
+            'mean': dataset[lat_label].mean().item(),
+            'max': dataset[lat_label].max().item(),
+            'label': lat_label
+        }
+        longitude = {
+            'min': dataset[lon_label].min().item(),
+            'mean': dataset[lon_label].mean().item(),
+            'max': dataset[lon_label].max().item(),
+            'label': lon_label
+        }
+
         start_date = datetime.strptime(options.start_date, '%Y-%m').date() if options.start_date else None
         end_date = datetime.strptime(options.end_date, '%Y-%m').date() if options.end_date else None
         map_data = []
 
-        # Make sure coordinate dims exist
-        lon, lat = utils.get_lon_lat_names(dataset)
-
-        for date, data_slice in dataset[options.var_name].groupby('time'):
+        for date, data_slice in dataset.groupby('time'):
             date = date.astype('<M8[M]').item()
 
             # Skip this image if it's not between the start_date and end_date
@@ -215,7 +213,7 @@ def generate_all_maps(options, number_of_worker_processes):
                 continue
 
             # Add to list of images to be generated
-            map_data.append((data_slice, dataset[lat], dataset[lon], options, file_path, date))
+            map_data.append((data_slice, latitude, longitude, options, file_path, date))
 
     # Multiprocessing - one process per time slice
     pool = multiprocessing.Pool(number_of_worker_processes)
@@ -225,114 +223,86 @@ def generate_all_maps(options, number_of_worker_processes):
 
 
 def generate_map(map_args):
-    """
-    All the arguments of this function are stored as a tuple for compatibility with map() and multiprocessing.
-    Arguments:
-    data - whichever index / variable is being mapped over the geographical area
-    lat - array of latitude values
-    lon - array of longitude values
-    options - user-input options which control some things, including...
-        shape - path to shape files which determines the map background. This path should have no extension. It's
-                assumed all .shp, .sbf and .shx files will exist with this name. If this is null, a default Basemap
-                background will be used
-        title - main title of the map (usually full name on the index)
-        subtitle - subtitle (additional information if necessary)
-        colormap - the color scheme to be used in the map and colorbar
-        colorbar_label - label to be printed above the colorbar legend (usually the index name)
-    file_path - where the image will be saved
-    date - the date of the time slice to which this map belongs
-
-    :param map_args:
-    :return:
-    """
     # Unpack arguments
-    data, lat, lon, options, file_path, date = map_args
-    # Set size of the plot and get figure and axes values for later reference
-    fig, ax = plt.subplots(figsize=[7, 7])
-    # Use custom shapefile if provided, otherwise use default Basemap. This prepares the map for plotting.
-    if options.width and options.height:
-        map_base = Basemap(resolution='l', projection='lcc', lon_0=lon.mean(), lat_0=lat.mean(),
-                           width=options.width, height=options.height, area_thresh=500, ax=ax)
-    else:
-        map_base = Basemap(resolution='l', projection='lcc', lon_0=lon.mean(), lat_0=lat.mean(),
-                           llcrnrlat=lat.min(), llcrnrlon=lon.min(), urcrnrlat=lat.max(), urcrnrlon=lon.max(),
-                           area_thresh=500, ax=ax)
+    data, latitude, longitude, options, file_path, date = map_args
+    projection = cartopy.crs.LambertConformal(
+        central_longitude=longitude['mean'],
+        central_latitude=latitude['mean'],
+        standard_parallels=(-10, -40),
+        cutoff=latitude['max']+2
+    )
+    figure = pyplot.figure(figsize=(8, 8))  # Set size of the plot
+    ax = pyplot.axes(projection=projection,
+                  extent=(longitude['min'], longitude['max'], latitude['min'], latitude['max']+2))
+    pyplot.gca().outline_patch.set_visible(False)  # Remove border around plot
 
-    # Continent outline
+    # Open shapefile, download one if not provided
     if options.shape:
-        map_base.readshapefile(options.shape, 'Australia', linewidth=0.4)
-        # Grey background
-        patches = [Polygon(np.array(shape), True) for info, shape in zip(map_base.Australia_info, map_base.Australia)]
-        ax.add_collection(PatchCollection(patches, facecolor='#afafaf'))
+        shp_file = options.shape
     else:
-        map_base.drawcoastlines(linewidth=0.5)
-        map_base.drawstates(linewidth=0.5)
-        map_base.fillcontinents(color='#afafaf', zorder=0)
+        shp_file = shapereader.natural_earth(resolution='110m', category='cultural',
+                                             name='admin_1_states_provinces_lines')
+    reader = shapereader.Reader(shp_file)
 
-    # No border for this map
-    plt.axis('off')
-
-    # Get the colour map
-    colour_map = get_colormap(options.colormap)
-    if colour_map is None:
-        colour_map = cm.get_cmap(options.colormap)
+    # Draw grey background
+    ax.add_geometries(reader.geometries(), cartopy.crs.PlateCarree(), edgecolor='none', facecolor='#afafaf',
+                      linewidth=0, zorder=0)
 
     # Smooth contours on map
-    data = convolve(data, Gaussian2DKernel(x_stddev=2), boundary='extend', preserve_nan=True)
+    data[options.var_name] = (
+        [latitude['label'], longitude['label']],
+        convolve(data[options.var_name], Gaussian2DKernel(x_stddev=1), boundary='extend', preserve_nan=True)
+    )
 
-    # Plot the data on the map
-    lon, lat = np.meshgrid(lon, lat)
+    # Plot the data
     if options.levels is not None and len(options.levels) > 1:
-        plot = map_base.contourf(lon, lat, data, options.levels, latlon=True, cmap=colour_map, extend="both")
+        levels = options.levels
     elif options.min is not None and options.max is not None and options.levels is not None:
-        levels = np.linspace(options.min, options.max, options.levels[0])
-        plot = map_base.contourf(lon, lat, data, levels, latlon=True, cmap=colour_map, extend="both")
+        levels = numpy.linspace(options.min, options.max, options.levels[0])
     else:
-        plot = map_base.contourf(lon, lat, data, latlon=True, cmap=colour_map, extend="both")
+        levels = None
+    im = ax.contourf(data[longitude['label']], data[latitude['label']], data[options.var_name],
+                     transform=cartopy.crs.PlateCarree(), colors=options.colours, levels=levels, zorder=1)
 
-    # Add a colorbar on the top left. To control the size and position of the colorbar an inset axis is required.
-    axins = inset_axes(ax, width='5%', height='50%', loc='lower left', bbox_to_anchor=(0.95, 0.7, 0.6, 0.5),
-                       bbox_transform=ax.transAxes, borderpad=0)
-    colorbar = plt.colorbar(plot, cax=axins, extendfrac='auto', extendrect=True)
-    if options.colorbar_ticklabels is not None:
-        colorbar.ax.get_yaxis().set_ticks([])
-        tick_labels = [x.strip() for x in options.colorbar_ticklabels.split(',')]
-        for i, label in enumerate(tick_labels):
-            # Automatically positioning n labels is tricky
-            num_labels = len(tick_labels)
-            y_spread = -0.0003 * num_labels**3 + 0.0139 * num_labels**2 - 0.1986 * num_labels + 1.0133
-            y_offset = -0.0033 * num_labels**2 + 0.0733 * num_labels - 0.4751
-            colorbar.ax.text(COLORBAR_LABELS_X_OFFSET, i * y_spread + y_offset, label, ha='left', va='center',
-                             fontproperties=SMALL_FONT)
+    # Draw borders
+    for state in reader.records():
+        ax.add_geometries([state.geometry], cartopy.crs.PlateCarree(), edgecolor='black', facecolor='none',
+                          linewidth=0.4, zorder=2)
+
+    # Add a colourbar
+    colourbar_axis = figure.add_axes([0.807, 0.63, 0.019, 0.16])
+    colourbar = figure.colorbar(im, cax=colourbar_axis)
+    colourbar.set_ticks([(options.levels[i] + options.levels[i+1])/2 for i in range(0, len(options.levels)-1)])
+    colourbar.ax.tick_params(axis='both', which='both', length=0)
+    colourbar.set_ticklabels(options.categories.split(', '))
+    for tick in colourbar_axis.get_yticklabels():
+        tick.set_font_properties(SMALL_FONT)
 
     # Add extra colorbar segment for no data if required
     if options.no_data:
-        nodata_axins = inset_axes(ax, width='5%', height = '50%', loc='lower left',
-                                  bbox_to_anchor=(0.95, 0.65, 0.6, 0.05), bbox_transform=ax.transAxes, borderpad=0)
+        nodata_axis = figure.add_axes([0.807, 0.6, 0.019, 0.015])
         nodata_cmap = matplotlib.colors.ListedColormap(['#afafaf'])
-        nodata_colorbar = matplotlib.colorbar.ColorbarBase(nodata_axins, cmap=nodata_cmap, extend='neither',
-                                                           ticks=[1, 2])
-        nodata_colorbar.ax.get_yaxis().set_ticks([])
-        nodata_colorbar.ax.text(COLORBAR_LABELS_X_OFFSET, 0.5, 'No data', ha='left', va='center',
-                                fontproperties=SMALL_FONT)
+        matplotlib.colorbar.ColorbarBase(nodata_axis, cmap=nodata_cmap, extend='neither')
+        nodata_axis.get_yaxis().set_ticks([])
+        nodata_axis.text(1.3, 0.4, 'No data', ha='left', va='center', fontproperties=SMALL_FONT)
 
     # Add date of this map, and title/subtitle/index name if given
-    plt.text(.1, .05, date.strftime('%B %Y'), transform=ax.transAxes, fontproperties=REGULAR_FONT)
+    pyplot.text(.1, .05, date.strftime('%B %Y'), transform=ax.transAxes, fontproperties=REGULAR_FONT)
     if options.title:
-        plt.text(.1, .1, options.title, transform=ax.transAxes, fontproperties=TITLE_FONT)
+        pyplot.text(.1, .1, options.title, transform=ax.transAxes, fontproperties=TITLE_FONT)
     if options.subtitle:
-        plt.text(.1, .15, date.strftime(options.subtitle), transform=ax.transAxes, fontproperties=SUBTITLE_FONT)
-    if options.colorbar_label:
-        axins.set_title(options.colorbar_label, fontproperties=REGULAR_FONT)
+        pyplot.text(.1, .15, date.strftime(options.subtitle), transform=ax.transAxes, fontproperties=SUBTITLE_FONT)
+    if options.colourbar_label:
+        colourbar_axis.set_title(options.colourbar_label, fontproperties=REGULAR_FONT)
 
     # Add prototype overlay if requested
     if options.prototype:
-        plt.text(0.5, 0.5, "PROTOTYPE", transform=ax.transAxes, alpha=.15, fontproperties=OVERLAY_FONT,
+        pyplot.text(0.5, 0.5, "PROTOTYPE", transform=ax.transAxes, alpha=.15, fontproperties=OVERLAY_FONT,
                  horizontalalignment='center', verticalalignment='center')
 
     # Save map
-    plt.savefig(file_path, dpi=150, bbox_inches='tight', quality=80)
-    plt.close()
+    pyplot.savefig(file_path, dpi=150, bbox_inches='tight', quality=80)
+    pyplot.close()
 
 
 if __name__ == '__main__':

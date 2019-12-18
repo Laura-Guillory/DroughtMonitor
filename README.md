@@ -197,7 +197,7 @@ Required arguments:
 |||
 |--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | --netcdf           | The path of the netCDF file containing the data.                                                                                                            |
-| --index_name       | The name of the variable to plot.                                                                                                                           |
+| --var_name         | The name of the variable to plot.                                                                                                                           |
 | --output_file_base | Base file name for all output files. Each image file will begin with this base name plus the date of the time slice. (e.g. SPI-1 becomes SPI-1_1889-01.jpg) |
 
 Optional arguments:
@@ -210,16 +210,14 @@ Optional arguments:
 | --end_date            | See --start_date                                                                                                                                                                                                                                                               |
 | --title               | Sets the map's title on the lower left. |
 | --subtitle            | Sets the map's subtitle on the lower left |
-| --colormap            | The color scheme of the image. See [Matlib's Colormaps](https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html) for options. |
-| --colorbar_label      | The label above the colorbar legend (usually an abbreviation of the index name) |
-| --colorbar_ticklabels | Optional setting to replace numbers on the colorbar legend with labels. Example: "dry, normal, wet". There should be 1 more label than the number of levels. |
-| --min                 | The minimum level for the plotted variable shown in the map and colorbar. |
-| --max                 | The maximum level for the plotted variable shown in the map and colorbar. |
-| --levels              | If one number is given, it is the number of levels for the plotted variable shown in the map and colorbar. If multiple numbers are given, they will be used as a list to explicitly set each level. Example: 8, or 0 1 2 3 4 5 6 7 |
-| --height              | Height of desired map domain in projection coordinates (meters). If not provided a default will be estimated. |
-| --width               | Width of desired map domain in projection coordinates (meters). If not provided a default will be estimated. |
+| --colours             | A list of hex colours to use for the map, from lowest value to highest. There should be one more colour than there are levels. |
+| --colourbar_label     | The label above the colourbar legend (usually an abbreviation of the index name) |
+| --categories          | Labels to replace the numbered levels on the colourbar. |
+| --min                 | The minimum level for the plotted variable shown in the map and colourbar. |
+| --max                 | The maximum level for the plotted variable shown in the map and colourbar. |
+| --levels              | If one number is given, it is the number of levels for the plotted variable shown in the map and colorbar. If multiple numbers are given, they will be used as a list to explicitly set each level. Example: 8, or 0 1 2 3 4 5 6 7 8 |
 | -p, --prototype       | Adds an overlay to the image labelling it as a prototype. |
-| --no-data             | Adds a No Data portion to the colorbar legend. Use this if blank areas are common on this type of map. |
+| --no-data             | Adds a No Data portion to the colourbar legend. Use this if blank areas are common on this type of map. |
 | -v, --verbose         | Increase output verbosity |
 | --multiprocessing     | Number of processes to use in multiprocessing. |
 
