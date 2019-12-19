@@ -5,13 +5,13 @@ import argparse
 import numpy
 from datetime import datetime
 import multiprocessing
-from astropy.convolution import convolve, Gaussian2DKernel
 import xarray
 import utils
 import logging
 import matplotlib
 from matplotlib.font_manager import FontProperties
 from matplotlib import pyplot
+import warnings
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -183,6 +183,8 @@ def generate_all_maps(options, number_of_worker_processes):
         # Get labels for latitude and longitude
         lon_label, lat_label = utils.get_lon_lat_names(dataset)
 
+        dataset = dataset.coarsen(time=1, latitude=3, longitude=3, boundary='pad').mean()
+
         latitude = {
             'min': dataset[lat_label].min().item(),
             'mean': dataset[lat_label].mean().item(),
@@ -233,7 +235,7 @@ def generate_map(map_args):
     )
     figure = pyplot.figure(figsize=(8, 8))  # Set size of the plot
     ax = pyplot.axes(projection=projection,
-                  extent=(longitude['min'], longitude['max'], latitude['min'], latitude['max']+2))
+                     extent=(longitude['min'], longitude['max'], latitude['min'], latitude['max']+2))
     pyplot.gca().outline_patch.set_visible(False)  # Remove border around plot
 
     # Open shapefile, download one if not provided
@@ -248,12 +250,6 @@ def generate_map(map_args):
     ax.add_geometries(reader.geometries(), cartopy.crs.PlateCarree(), edgecolor='none', facecolor='#afafaf',
                       linewidth=0, zorder=0)
 
-    # Smooth contours on map
-    data[options.var_name] = (
-        [latitude['label'], longitude['label']],
-        convolve(data[options.var_name], Gaussian2DKernel(x_stddev=1), boundary='extend', preserve_nan=True)
-    )
-
     # Plot the data
     if options.levels is not None and len(options.levels) > 1:
         levels = options.levels
@@ -261,8 +257,10 @@ def generate_map(map_args):
         levels = numpy.linspace(options.min, options.max, options.levels[0])
     else:
         levels = None
-    im = ax.contourf(data[longitude['label']], data[latitude['label']], data[options.var_name],
-                     transform=cartopy.crs.PlateCarree(), colors=options.colours, levels=levels, zorder=1)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', category=RuntimeWarning)
+        im = ax.contourf(data[longitude['label']], data[latitude['label']], data[options.var_name],
+                         transform=cartopy.crs.PlateCarree(), colors=options.colours, levels=levels, zorder=1)
 
     # Draw borders
     for state in reader.records():

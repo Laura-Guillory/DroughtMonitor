@@ -6,7 +6,6 @@ import logging
 from percentile_rank import percentile_rank
 import os
 import multiprocessing
-import warnings
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
