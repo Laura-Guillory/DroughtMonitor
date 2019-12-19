@@ -6,6 +6,8 @@ numpy
 Pillow
 matplotlib
 scipy
-astropy
 rasterio
 Cartopy
+cython
+gdal
+fiona

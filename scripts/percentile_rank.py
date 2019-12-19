@@ -1,8 +1,6 @@
 import argparse
-import xarray
 import netCDF4
 from datetime import datetime
-import os
 import scipy.stats
 import logging
 import numpy
