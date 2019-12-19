@@ -2,13 +2,10 @@ python-dateutil
 xarray
 dask
 netCDF4
-toolz
 numpy
 Pillow
 matplotlib
 scipy
-pyproj
-proj4
-geos
 astropy
 rasterio
+Cartopy
