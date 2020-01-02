@@ -128,7 +128,7 @@ def file_already_downloaded(path):
 
 def check_data_is_current(path, dataset_names):
     date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    date = date.replace(month=12 if date.month == 0 else date.month - 1)
+    date = date.replace(month=12 if date.month == 1 else date.month - 1)
     LOGGER.info(date.strftime('Checking if data has been released for %B %Y:'))
     for dataset_name in dataset_names:
         if dataset_name == 'ndvi':
