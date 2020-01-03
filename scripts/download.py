@@ -66,10 +66,16 @@ def download_datasets(path, datasets):
             for year in range(1889, current_year + 1):
                 destination = path.format(dataset=dataset, date=year, filetype='nc')
                 url = DOWNLOAD_URLS['SILO'].format(dataset=dataset, year=year)
-                # Always redownload most recent year
-                if file_already_downloaded(destination) and year != datetime.now().year:
-                    continue
-                try_to_download(url, destination)
+                if not file_already_downloaded(destination) or need_to_redownload_month(year, current_month):
+                    try_to_download(url, destination)
+
+
+def need_to_redownload_month(file_year, current_month):
+    if file_year == datetime.now().year:
+        return True
+    if current_month == 12 and file_year == datetime.now().year-1:
+        return True
+    return False
 
 
 def get_options():
@@ -128,6 +134,8 @@ def file_already_downloaded(path):
 
 def check_data_is_current(path, dataset_names):
     date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if date.month == 1:
+        date = date.replace(year=date.year-1)
     date = date.replace(month=12 if date.month == 1 else date.month - 1)
     LOGGER.info(date.strftime('Checking if data has been released for %B %Y:'))
     for dataset_name in dataset_names:

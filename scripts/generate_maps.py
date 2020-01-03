@@ -259,7 +259,7 @@ def generate_map(map_args):
         levels = None
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', category=RuntimeWarning)
-        im = ax.contourf(data[longitude['label']], data[latitude['label']], data[options.var_name],
+        im = ax.contourf(data[longitude['label']], data[latitude['label']], data[options.var_name], extend='both',
                          transform=cartopy.crs.PlateCarree(), colors=options.colours, levels=levels, zorder=1)
 
     # Draw borders
@@ -269,10 +269,11 @@ def generate_map(map_args):
 
     # Add a colourbar
     colourbar_axis = figure.add_axes([0.807, 0.63, 0.019, 0.16])
-    colourbar = figure.colorbar(im, cax=colourbar_axis)
-    colourbar.set_ticks([(options.levels[i] + options.levels[i+1])/2 for i in range(0, len(options.levels)-1)])
-    colourbar.ax.tick_params(axis='both', which='both', length=0)
-    colourbar.set_ticklabels(options.categories.split(', '))
+    colourbar = figure.colorbar(im, cax=colourbar_axis, extendfrac=0)
+    if options.categories is not None:
+        colourbar.ax.tick_params(axis='both', which='both', length=0)
+        colourbar.set_ticks([(options.levels[i] + options.levels[i+1])/2 for i in range(0, len(options.levels)-1)])
+        colourbar.set_ticklabels(options.categories.split(', '))
     for tick in colourbar_axis.get_yticklabels():
         tick.set_font_properties(SMALL_FONT)
 
@@ -296,7 +297,7 @@ def generate_map(map_args):
     # Add prototype overlay if requested
     if options.prototype:
         pyplot.text(0.5, 0.5, "PROTOTYPE", transform=ax.transAxes, alpha=.15, fontproperties=OVERLAY_FONT,
-                 horizontalalignment='center', verticalalignment='center')
+                    horizontalalignment='center', verticalalignment='center')
 
     # Save map
     pyplot.savefig(file_path, dpi=150, bbox_inches='tight', quality=80)
