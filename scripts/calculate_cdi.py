@@ -6,6 +6,7 @@ import logging
 from percentile_rank import percentile_rank
 import os
 import multiprocessing
+import numpy
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -113,8 +114,8 @@ def standardise_dataset(dataset: xarray.Dataset):
         dataset = dataset.rename({'lat': 'latitude', 'lon': 'longitude'})
     except ValueError:
         pass
-    dataset['latitude'] = dataset['latitude'].astype('f4')  # This fixes xarray dropping values to Nan in a stripe
-    dataset['longitude'] = dataset['longitude'].astype('f4')  # pattern. The exact cause was never found.
+    dataset['latitude'] = numpy.around(dataset['latitude'].values, decimals=2)
+    dataset['longitude'] = numpy.around(dataset['longitude'].values, decimals=2)
     return dataset
 
 
@@ -232,10 +233,6 @@ def calc_cdi(dataset: xarray.Dataset, options):
         if key != 'cdi':
             dataset = dataset.drop(key)
     dataset = dataset.dropna('time', how='all')
-    # For some reason latitude becomes a double while longitude remains a float... tidy that up.
-    dataset['latitude'] = dataset['latitude'].astype('f4')
-    dataset['latitude'].attrs['units'] = 'degrees_north'
-    dataset['longitude'].attrs['units'] = 'degrees_east'
     # Percentile rank after finished.
     attrs = {var: dataset[var].attrs for var in set(dataset.keys()).union(set(dataset.dims))}
     stacked = dataset.cdi.stack(x=['latitude', 'longitude', 'time'])
@@ -244,6 +241,8 @@ def calc_cdi(dataset: xarray.Dataset, options):
     dataset['cdi'] = stacked.unstack(dim='x')
     for key in attrs:
         dataset[key].attrs = attrs[key]
+    dataset['latitude'].attrs['units'] = 'degrees_north'
+    dataset['longitude'].attrs['units'] = 'degrees_east'
     utils.save_to_netcdf(dataset, options.output)
     return
 
