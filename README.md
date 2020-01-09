@@ -87,11 +87,12 @@ data.
     or [ArcGis](https://www.arcgis.com/index.html), or you can generate some maps from the data.
     
     ```
-    python generate_maps.py --netcdf cdi.nc --var_name cdi --output_file_base maps/CDI/CDI_ --title "Australian Combined Drought Indicator" --colorbar_label CDI --colormap BlYlBn --levels 0.02 0.05 0.1 0.2 0.3 0.7 0.8 0.9 0.95 0.98 --colorbar_ticklabels "Exceptional drought, Extreme drought, Severe drought, Moderate drought, Abnormally dry, Near Normal, Abnormally wet, Moderate wet, Severe wet, Extreme wet, Exceptional wet" --height 4000000 --width 4100000 --no_data
+    python generate_maps.py --netcdf cdi.nc --var_name cdi --output_file_base maps/CDI/CDI_ --title "Australian Combined Drought Indicator" --colourbar_label CDI --levels 0.02 0.05 0.1 0.2 0.3 0.7 0.8 0.9 0.95 0.98 --categories "Exceptional drought, Extreme drought, Severe drought, Moderate drought, Abnormally dry, Near Normal, Abnormally wet, Moderate wet, Severe wet, Extreme wet, Exceptional wet" --no_data
     ```
     
-    This will create one map for every month in `cdi.nc`, which can be found in the `maps/CDI` directory. If you only want to generate a few maps, you can use the 
-    `--start_date` and `--end_date` options.
+    This will create one map for every month in `cdi.nc`, which can be found in the `maps/CDI` directory. If you only 
+    want to generate a few maps, you can use the `--start_date` and `--end_date` options. Note that you need to use the 
+    -o option if you want to overwrite maps which have already been created.
  
 ## Scripts
 
