@@ -11,3 +11,4 @@ Cartopy
 cython
 gdal
 fiona
+regionmask

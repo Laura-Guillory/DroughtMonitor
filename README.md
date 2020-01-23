@@ -212,14 +212,18 @@ Optional arguments:
 | --end_date            | See --start_date                                                                                                                                                                                                                                                               |
 | --title               | Sets the map's title on the lower left. |
 | --subtitle            | Sets the map's subtitle on the lower left |
+| --label_position      | Sets the position of the title, subtitle and date on the image. Given as a fraction of the image from the bottom-left corner. Example: 0.5 0.5 |
 | --colours             | A list of hex colours to use for the map, from lowest value to highest. There should be one more colour than there are levels. |
 | --colourbar_label     | The label above the colourbar legend (usually an abbreviation of the index name) |
+| --colourbar_position  | Sets the position of the colourbar. Given as a fraction of the image from the bottom-left corner. Example: 0.5 0.5 |
 | --categories          | Labels to replace the numbered levels on the colourbar. |
 | --min                 | The minimum level for the plotted variable shown in the map and colourbar. |
 | --max                 | The maximum level for the plotted variable shown in the map and colourbar. |
 | --levels              | If one number is given, it is the number of levels for the plotted variable shown in the map and colorbar. If multiple numbers are given, they will be used as a list to explicitly set each level. Example: 8, or 0 1 2 3 4 5 6 7 8 |
+| --region              | Mask out all of the states except the one specified by this argument (e.g. "Queensland" or '"Northern Territory") |
+| --extent              | Defines the extent of the map in latitude and longitude. Should be given as four values: left, right, bottom and top. Example: 137, 155, -10, -30 |
 | -p, --prototype       | Adds an overlay to the image labelling it as a prototype. |
-| --no-data             | Adds a No Data portion to the colourbar legend. Use this if blank areas are common on this type of map. |
+| --no-data             | Adds a No Data section to the colourbar legend. Use this if blank areas are common on this type of map. |
 | -v, --verbose         | Increase output verbosity |
 | --multiprocessing     | Number of processes to use in multiprocessing. |
 

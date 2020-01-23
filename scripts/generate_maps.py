@@ -12,6 +12,7 @@ import matplotlib
 from matplotlib.font_manager import FontProperties
 from matplotlib import pyplot
 import warnings
+import regionmask
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ TITLE_FONT = FontProperties(fname='fonts/Roboto-Medium.ttf', size=14)
 SUBTITLE_FONT = FontProperties(fname='fonts/Roboto-LightItalic.ttf', size=12)
 REGULAR_FONT = FontProperties(fname='fonts/Roboto-Light.ttf', size=13)
 SMALL_FONT = FontProperties(fname='fonts/Roboto-Light.ttf', size=10)
-OVERLAY_FONT = FontProperties(fname='fonts/Roboto-Medium.ttf', size=80)
+OVERLAY_FONT = FontProperties(fname='fonts/Roboto-Medium.ttf', size=70)
 
 COLORBAR_LABELS_X_OFFSET = 1.3
 
@@ -52,8 +53,8 @@ def get_options():
     Options are accessed via options.index_name, options.shape, etc.
 
     Required arguments: netcdf, var_name, output_file_base
-    Optional arguments: overwrite, shape, start_date, end_date, title, subtitle, colormap, colorbar_label, min, max,
-                        levels
+    Optional arguments: overwrite, shape, start_date, end_date, title, subtitle, label_position, colours, colourbar_label, colourbar_position, categories, min, max,
+                        levels, region, extent, prototype, no_data, verbose, multiprocessing
 
     Run this with the -h (help) argument for more detailed information. (python generate_maps.py -h)
 
@@ -105,6 +106,14 @@ def get_options():
         help='Sets the map\'s subtitle on the lower left.'
     )
     optional.add_argument(
+        '--label_position',
+        help='Sets the position of the title, subtitle and date on the image. Given as a fraction of the image from '
+             'the bottom-left corner. Example: 0.5 0.5',
+        nargs='+',
+        type=float,
+        default=[.1, .05]
+    )
+    optional.add_argument(
         '--colours',
         default=None,
         nargs="+",
@@ -114,6 +123,14 @@ def get_options():
     optional.add_argument(
         '--colourbar_label',
         help='The label above the colourbar legend (usually an abbreviation of the index name).'
+    )
+    optional.add_argument(
+        '--colourbar_position',
+        help='Sets the position of the colourbar. Given as a fraction of the image from the bottom-left corner. '
+             'Example: 0.5 0.5',
+        nargs='+',
+        type=float,
+        default=[0.807, 0.6]
     )
     optional.add_argument(
         '--categories',
@@ -138,6 +155,19 @@ def get_options():
         type=float
     )
     optional.add_argument(
+        '--region',
+        help='Mask out all of the states except the one specified by this argument (e.g. "Queensland" or '
+             '"Northern Territory")',
+        default=None
+    )
+    optional.add_argument(
+        '--extent',
+        help='Defines the extent of the map in latitude and longitude. Should be given as four values: left, right, '
+             'bottom and top. Example: 137, 155, -10, -30',
+        nargs='+',
+        type=float
+    )
+    optional.add_argument(
         '-p', '--prototype',
         action='store_true',
         help='Adds an overlay to the image labelling it as a prototype.'
@@ -145,7 +175,7 @@ def get_options():
     optional.add_argument(
         '--no_data',
         action='store_true',
-        help='Adds a No Data portion to the colorbar legend. Use this if blank areas are common on this type of map.'
+        help='Adds a No Data section to the colorbar legend. Use this if blank areas are common on this type of map.'
     )
     parser.add_argument(
         '-v', '--verbose',
@@ -183,7 +213,19 @@ def generate_all_maps(options, number_of_worker_processes):
         # Get labels for latitude and longitude
         lon_label, lat_label = utils.get_lon_lat_names(dataset)
 
-        dataset = dataset.coarsen(time=1, latitude=3, longitude=3, boundary='pad').mean()
+        if options.region is None:
+            dataset = dataset.coarsen(time=1, latitude=3, longitude=3, boundary='pad').mean()
+        else:
+            shape = read_shape(options.shape)
+            for state in shape.records():
+                if state.attributes['NAME_1'] == options.region:
+                    region = regionmask.Regions([state.geometry])
+            if region is None:
+                raise ValueError('That region does not exist in that shapefile.')
+            mask = region.mask(dataset.longitude, dataset.latitude, lon_name=lon_label, lat_name=lat_label)
+            dataset = dataset.where(mask == 0)
+            dataset['longitude'] = dataset.longitude.values - 0.01
+            dataset['latitude'] = dataset.latitude.values - 0.01
 
         latitude = {
             'min': dataset[lat_label].min().item(),
@@ -227,28 +269,39 @@ def generate_all_maps(options, number_of_worker_processes):
 def generate_map(map_args):
     # Unpack arguments
     data, latitude, longitude, options, file_path, date = map_args
-    projection = cartopy.crs.LambertConformal(
-        central_longitude=longitude['mean'],
-        central_latitude=latitude['mean'],
-        standard_parallels=(-10, -40),
-        cutoff=latitude['max']+2
-    )
+    if options.region is None:
+        projection = cartopy.crs.LambertConformal(
+            central_longitude=longitude['mean'],
+            central_latitude=latitude['mean'],
+            standard_parallels=(-10, -40),
+            cutoff=latitude['max']+2
+        )
+    else:
+        projection = cartopy.crs.PlateCarree()
+
+    if options.extent is not None:
+        left, right, bottom, top = options.extent
+    else:
+        left = longitude['min']
+        right = longitude['max']
+        bottom = latitude['min']
+        top = latitude['max'] + 2
+
     figure = pyplot.figure(figsize=(8, 8))  # Set size of the plot
-    ax = pyplot.axes(projection=projection,
-                     extent=(longitude['min'], longitude['max'], latitude['min'], latitude['max']+2))
+    ax = pyplot.axes(projection=projection, extent=(left, right, bottom, top))
     pyplot.gca().outline_patch.set_visible(False)  # Remove border around plot
 
-    # Open shapefile, download one if not provided
-    if options.shape:
-        shp_file = options.shape
-    else:
-        shp_file = shapereader.natural_earth(resolution='110m', category='cultural',
-                                             name='admin_1_states_provinces_lines')
-    reader = shapereader.Reader(shp_file)
+    # Get the shape reader
+    shape = read_shape(options.shape)
 
     # Draw grey background
-    ax.add_geometries(reader.geometries(), cartopy.crs.PlateCarree(), edgecolor='none', facecolor='#afafaf',
-                      linewidth=0, zorder=0)
+    if options.region is None:
+        area = shape.geometries()
+    else:
+        for state in shape.records():
+            if state.attributes['NAME_1'] == options.region:
+                area = [state.geometry]
+    ax.add_geometries(area, cartopy.crs.PlateCarree(), edgecolor='none', facecolor='#afafaf', linewidth=1, zorder=0)
 
     # Plot the data
     if options.levels is not None and len(options.levels) > 1:
@@ -263,12 +316,13 @@ def generate_map(map_args):
                          transform=cartopy.crs.PlateCarree(), colors=options.colours, levels=levels, zorder=1)
 
     # Draw borders
-    for state in reader.records():
-        ax.add_geometries([state.geometry], cartopy.crs.PlateCarree(), edgecolor='black', facecolor='none',
-                          linewidth=0.4, zorder=2)
+    for state in shape.records():
+        if options.region is None or state.attributes['NAME_1'] == options.region:
+            ax.add_geometries([state.geometry], cartopy.crs.PlateCarree(), edgecolor='black', facecolor='none',
+                              linewidth=0.4, zorder=3)
 
     # Add a colourbar
-    colourbar_axis = figure.add_axes([0.807, 0.63, 0.019, 0.16])
+    colourbar_axis = figure.add_axes([options.colourbar_position[0], options.colourbar_position[1] + .03, 0.019, 0.16])
     colourbar = figure.colorbar(im, cax=colourbar_axis, extendfrac=0)
     if options.categories is not None:
         colourbar.ax.tick_params(axis='both', which='both', length=0)
@@ -279,29 +333,42 @@ def generate_map(map_args):
 
     # Add extra colorbar segment for no data if required
     if options.no_data:
-        nodata_axis = figure.add_axes([0.807, 0.6, 0.019, 0.015])
+        nodata_axis = figure.add_axes([options.colourbar_position[0], options.colourbar_position[1], 0.019, 0.015])
         nodata_cmap = matplotlib.colors.ListedColormap(['#afafaf'])
         matplotlib.colorbar.ColorbarBase(nodata_axis, cmap=nodata_cmap, extend='neither')
         nodata_axis.get_yaxis().set_ticks([])
-        nodata_axis.text(1.3, 0.4, 'No data', ha='left', va='center', fontproperties=SMALL_FONT)
+        nodata_axis.text(1.3, .4, 'No data', ha='left', va='center', fontproperties=SMALL_FONT)
 
     # Add date of this map, and title/subtitle/index name if given
-    pyplot.text(.1, .05, date.strftime('%B %Y'), transform=ax.transAxes, fontproperties=REGULAR_FONT)
+    pyplot.text(options.label_position[0], options.label_position[1], date.strftime('%B %Y'), transform=ax.transAxes,
+                fontproperties=REGULAR_FONT)
     if options.title:
-        pyplot.text(.1, .1, options.title, transform=ax.transAxes, fontproperties=TITLE_FONT)
+        pyplot.text(options.label_position[0], options.label_position[1] + .05, options.title, transform=ax.transAxes,
+                    fontproperties=TITLE_FONT)
     if options.subtitle:
-        pyplot.text(.1, .15, date.strftime(options.subtitle), transform=ax.transAxes, fontproperties=SUBTITLE_FONT)
+        pyplot.text(options.label_position[0], options.label_position[1] + .1, date.strftime(options.subtitle),
+                    transform=ax.transAxes,
+                    fontproperties=SUBTITLE_FONT)
     if options.colourbar_label:
         colourbar_axis.set_title(options.colourbar_label, fontproperties=REGULAR_FONT)
 
     # Add prototype overlay if requested
     if options.prototype:
-        pyplot.text(0.5, 0.5, "PROTOTYPE", transform=ax.transAxes, alpha=.15, fontproperties=OVERLAY_FONT,
+        pyplot.text(.5, .4, "PROTOTYPE", transform=ax.transAxes, alpha=.15, fontproperties=OVERLAY_FONT,
                     horizontalalignment='center', verticalalignment='center')
 
     # Save map
     pyplot.savefig(file_path, dpi=150, bbox_inches='tight', quality=80)
     pyplot.close()
+
+
+def read_shape(shapefile=None):
+    if shapefile is None:
+        shp_file = shapereader.natural_earth(resolution='110m', category='cultural',
+                                             name='admin_1_states_provinces_lines')
+    else:
+        shp_file = shapefile
+    return shapereader.Reader(shp_file)
 
 
 if __name__ == '__main__':
