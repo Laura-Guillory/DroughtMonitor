@@ -217,13 +217,12 @@ def generate_all_maps(options, number_of_worker_processes):
             dataset = dataset.coarsen(time=1, latitude=3, longitude=3, boundary='pad').mean()
         else:
             shape = read_shape(options.shape)
-            for state in shape.records():
-                if state.attributes['NAME_1'] == options.region:
-                    region = regionmask.Regions([state.geometry])
-            if region is None:
+            regions = [record.geometry for record in shape.records() if record.attributes['NAME_1'] == options.region]
+            if len(regions) == 0:
                 raise ValueError('That region does not exist in that shapefile.')
-            mask = region.mask(dataset.longitude, dataset.latitude, lon_name=lon_label, lat_name=lat_label)
-            dataset = dataset.where(mask == 0)
+            area = regionmask.Regions(regions)
+            mask = area.mask(dataset.longitude, dataset.latitude, lon_name=lon_label, lat_name=lat_label)
+            dataset = dataset.where(~numpy.isnan(mask))
             dataset['longitude'] = dataset.longitude.values - 0.01
             dataset['latitude'] = dataset.latitude.values - 0.01
 
@@ -298,9 +297,7 @@ def generate_map(map_args):
     if options.region is None:
         area = shape.geometries()
     else:
-        for state in shape.records():
-            if state.attributes['NAME_1'] == options.region:
-                area = [state.geometry]
+        area = [record.geometry for record in shape.records() if record.attributes['NAME_1'] == options.region]
     ax.add_geometries(area, cartopy.crs.PlateCarree(), edgecolor='none', facecolor='#afafaf', linewidth=1, zorder=0)
 
     # Plot the data
