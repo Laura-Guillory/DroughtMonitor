@@ -45,7 +45,7 @@ def main():
         combine_soil_moisture(options.path)
     for dataset_name in options.datasets:
         if dataset_name in CALC_MORE_TIME_PERIODS:
-            for scale in [3, 6, 9, 12]:
+            for scale in [3, 6, 9, 12, 24, 36]:
                 avg_over_period(dataset_name, options.path, scale)
     end_time = datetime.now()
     LOGGER.info('End time: ' + str(end_time))
