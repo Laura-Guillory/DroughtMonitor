@@ -231,7 +231,7 @@ def avg_over_period(dataset_name, file_path, scale):
     output_path = get_merged_dataset_path(file_path, new_var_name)
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', category=RuntimeWarning)
-        with xarray.open_dataset(input_path, chunks={'time': 12}) as dataset:
+        with xarray.open_dataset(input_path, chunks={'time': 18}) as dataset:
             var = list(dataset.keys())[0]
             dataset[new_var_name] = dataset[var].rolling(time=scale).construct('window').mean('window')
             # This operation doesn't account for missing time entries. We need to remove results around those time gaps
