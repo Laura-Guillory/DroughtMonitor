@@ -10,6 +10,8 @@ import logging
 import warnings
 import shutil
 import calendar
+import math
+import bottleneck
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -231,9 +233,9 @@ def avg_over_period(dataset_name, file_path, scale):
     output_path = get_merged_dataset_path(file_path, new_var_name)
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', category=RuntimeWarning)
-        with xarray.open_dataset(input_path, chunks={'time': 18}) as dataset:
+        with xarray.open_dataset(input_path) as dataset:
             var = list(dataset.keys())[0]
-            dataset[new_var_name] = dataset[var].rolling(time=scale).construct('window').mean('window')
+            dataset[new_var_name] = dataset[var].rolling(time=scale).mean()
             # This operation doesn't account for missing time entries. We need to remove results around those time gaps
             # that shouldn't have enough data to exist.
             time = dataset['time'].values
