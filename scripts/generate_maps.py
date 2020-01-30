@@ -177,19 +177,33 @@ def get_options():
         action='store_true',
         help='Adds a No Data section to the colorbar legend. Use this if blank areas are common on this type of map.'
     )
-    parser.add_argument(
+    optional.add_argument(
         '-v', '--verbose',
         help='Increase output verbosity',
         action='store_const',
         const=logging.INFO,
         default=logging.WARN
     )
-    parser.add_argument(
+    optional.add_argument(
         '--multiprocessing',
         help='Number of processes to use in multiprocessing.',
         choices=["single", "all_but_one", "all"],
-        required=False,
         default="all_but_one",
+    )
+    optional.add_argument(
+        '--no_downsampling',
+        help='Don\'t downsample data to generate maps faster. This option can be helpful if downsampling is causing '
+             'blurred borders.',
+        action='store_const',
+        const=True,
+        default=False
+    )
+    optional.add_argument(
+        '--plot',
+        help='What method to use to plot the data. Options: pcolor, contour.',
+        default='contour',
+        type=str,
+        choices=['contour', 'pcolor']
     )
     return parser.parse_args()
 
@@ -209,12 +223,16 @@ def generate_all_maps(options, number_of_worker_processes):
     os.makedirs(os.path.dirname(options.output_file_base), exist_ok=True)
 
     # Open netCDF file
-    with xarray.open_dataset(options.netcdf, chunks={'time': 10}) as dataset:
+    with xarray.open_dataset(options.netcdf) as dataset:
+        if 'time' in dataset.dims:
+            dataset = dataset.chunk({'time': 10})
+
         # Get labels for latitude and longitude
         lon_label, lat_label = utils.get_lon_lat_names(dataset)
 
         if options.region is None:
-            dataset = dataset.coarsen(time=1, latitude=3, longitude=3, boundary='pad').mean()
+            if not options.no_downsampling:
+                dataset = dataset.coarsen(time=1, latitude=3, longitude=3, boundary='pad').mean()
         else:
             shape = read_shape(options.shape)
             regions = [record.geometry for record in shape.records() if record.attributes['NAME_1'] == options.region]
@@ -238,6 +256,10 @@ def generate_all_maps(options, number_of_worker_processes):
             'max': dataset[lon_label].max().item(),
             'label': lon_label
         }
+
+        if 'time' not in dataset.dims:
+            generate_map((dataset, latitude, longitude, options, options.output_file_base + '.jpg', None))
+            return
 
         start_date = datetime.strptime(options.start_date, '%Y-%m').date() if options.start_date else None
         end_date = datetime.strptime(options.end_date, '%Y-%m').date() if options.end_date else None
@@ -284,10 +306,10 @@ def generate_map(map_args):
         left = longitude['min']
         right = longitude['max']
         bottom = latitude['min']
-        top = latitude['max'] + 2
+        top = latitude['max']
 
     figure = pyplot.figure(figsize=(8, 8))  # Set size of the plot
-    ax = pyplot.axes(projection=projection, extent=(left, right, bottom, top))
+    ax = pyplot.axes(projection=projection, extent=(left, right, bottom, top+2))
     pyplot.gca().outline_patch.set_visible(False)  # Remove border around plot
 
     # Get the shape reader
@@ -309,8 +331,13 @@ def generate_map(map_args):
         levels = None
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', category=RuntimeWarning)
-        im = ax.contourf(data[longitude['label']], data[latitude['label']], data[options.var_name], extend='both',
-                         transform=cartopy.crs.PlateCarree(), colors=options.colours, levels=levels, zorder=1)
+        if options.plot == 'contour':
+            im = ax.contourf(data[longitude['label']], data[latitude['label']], data[options.var_name], extend='both',
+                             transform=cartopy.crs.PlateCarree(), colors=options.colours, levels=levels, zorder=1)
+        else:
+            cmap = matplotlib.colors.ListedColormap(options.colours)
+            im = ax.pcolormesh(data[longitude['label']], data[latitude['label']], data[options.var_name], cmap=cmap,
+                               transform=cartopy.crs.PlateCarree(), zorder=1)
 
     # Draw borders
     for state in shape.records():
@@ -323,7 +350,10 @@ def generate_map(map_args):
     colourbar = figure.colorbar(im, cax=colourbar_axis, extendfrac=0)
     if options.categories is not None:
         colourbar.ax.tick_params(axis='both', which='both', length=0)
-        colourbar.set_ticks([(options.levels[i] + options.levels[i+1])/2 for i in range(0, len(options.levels)-1)])
+        if options.plot == 'contour':
+            colourbar.set_ticks([(options.levels[i] + options.levels[i+1])/2 for i in range(0, len(options.levels)-1)])
+        else:
+            colourbar.set_ticks([x*0.85 + 0.5 for x in levels])
         colourbar.set_ticklabels(options.categories.split(', '))
     for tick in colourbar_axis.get_yticklabels():
         tick.set_font_properties(SMALL_FONT)
@@ -337,14 +367,14 @@ def generate_map(map_args):
         nodata_axis.text(1.3, .4, 'No data', ha='left', va='center', fontproperties=SMALL_FONT)
 
     # Add date of this map, and title/subtitle/index name if given
-    pyplot.text(options.label_position[0], options.label_position[1], date.strftime('%B %Y'), transform=ax.transAxes,
-                fontproperties=REGULAR_FONT)
+    if date is not None:
+        pyplot.text(options.label_position[0], options.label_position[1], date.strftime('%B %Y'),
+                    transform=ax.transAxes, fontproperties=REGULAR_FONT)
     if options.title:
         pyplot.text(options.label_position[0], options.label_position[1] + .05, options.title, transform=ax.transAxes,
                     fontproperties=TITLE_FONT)
     if options.subtitle:
-        pyplot.text(options.label_position[0], options.label_position[1] + .1, date.strftime(options.subtitle),
-                    transform=ax.transAxes,
+        pyplot.text(options.label_position[0], options.label_position[1] + .1, options.subtitle, transform=ax.transAxes,
                     fontproperties=SUBTITLE_FONT)
     if options.colourbar_label:
         colourbar_axis.set_title(options.colourbar_label, fontproperties=REGULAR_FONT)
