@@ -235,7 +235,7 @@ def avg_over_period(dataset_name, file_path, scale):
         warnings.simplefilter('ignore', category=RuntimeWarning)
         with xarray.open_dataset(input_path) as dataset:
             var = list(dataset.keys())[0]
-            dataset[new_var_name] = dataset[var].rolling(time=scale).mean()
+            dataset[new_var_name] = dataset[var].rolling(time=scale).construct('window').mean('window')
             # This operation doesn't account for missing time entries. We need to remove results around those time gaps
             # that shouldn't have enough data to exist.
             time = dataset['time'].values
