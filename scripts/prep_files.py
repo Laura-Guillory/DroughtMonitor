@@ -234,8 +234,17 @@ def avg_over_period(dataset_name, file_path, scale):
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', category=RuntimeWarning)
         with xarray.open_dataset(input_path) as dataset:
+            # The rolling mean operation fails if the last chunk length is lower than scale / 2
+            # But chunks still need to be used or the program will run out of memory
+            chunk_length = math.ceil(scale/2)
+            while True:
+                last_chunk_length = dataset['time'].size % chunk_length
+                if last_chunk_length == 0 or last_chunk_length >= scale/2 or last_chunk_length >= dataset['time'].size:
+                    break
+                chunk_length += 1
+            dataset = dataset.chunk({'time': chunk_length})
             var = list(dataset.keys())[0]
-            dataset[new_var_name] = dataset[var].rolling(time=scale).construct('window').mean('window')
+            dataset[new_var_name] = dataset[var].rolling(time=scale, min_periods=1).construct('window').mean('window')
             # This operation doesn't account for missing time entries. We need to remove results around those time gaps
             # that shouldn't have enough data to exist.
             time = dataset['time'].values
