@@ -149,7 +149,7 @@ def merge_years(dataset_name, file_path):
     inputs_path = file_path.format(dataset=dataset_name, year='*', filetype='nc')
     with xarray.open_mfdataset(inputs_path, chunks={'time': 10}, combine='by_coords', parallel=True, engine='h5netcdf') as dataset:
         # Dimensions must be in this order to be accepted by the climate indices tool
-        dataset = dataset.drop('crs', errors='ignore').transpose('lat', 'lon', 'time')
+        dataset = dataset.drop_vars('crs', errors='ignore').transpose('lat', 'lon', 'time')
         if dataset_name not in DAILY_DATASETS:
             dataset = utils.truncate_time_dim(dataset)
         encoding = {'time': {'units': 'days since 1889-01', '_FillValue': None}}
@@ -244,7 +244,7 @@ def avg_over_period(dataset_name, file_path, scale):
                 chunk_length += 1
             dataset = dataset.chunk({'time': chunk_length})
             var = list(dataset.keys())[0]
-            dataset[new_var_name] = dataset[var].rolling(time=scale, min_periods=1).construct('window').mean('window')
+            dataset[new_var_name] = dataset[var].rolling(time=scale, min_periods=scale).construct('window').mean('window')
             # This operation doesn't account for missing time entries. We need to remove results around those time gaps
             # that shouldn't have enough data to exist.
             time = dataset['time'].values
@@ -257,14 +257,14 @@ def avg_over_period(dataset_name, file_path, scale):
                 window_dates = time[i - scale + 1:i + 1]
                 first_date = window_dates[0].astype('<M8[M]').item()
                 last_date = window_dates[-1].astype('<M8[M]').item()
-                if ((last_date.year - first_date.year) * 12 + last_date.month - first_date.month) > scale:
+                if ((last_date.year - first_date.year) * 12 + last_date.month - first_date.month) >= scale:
                     dates_to_remove.append(time[i])
-            dataset = dataset.drop(time=dates_to_remove)
+            dataset = dataset.drop_sel(time=dates_to_remove)
             # Drop all input variables and anything else that slipped in, we ONLY want the new CDI.
             keys = dataset.keys()
             for key in keys:
                 if key != new_var_name:
-                    dataset = dataset.drop(key)
+                    dataset = dataset.drop_vars(key)
             dataset = dataset.dropna('time', how='all')
             utils.save_to_netcdf(dataset, output_path)
 
