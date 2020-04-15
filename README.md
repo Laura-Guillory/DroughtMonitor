@@ -110,7 +110,7 @@ Arguments:
 
 |||
 |--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| --path             | Determines where the data will be saved. Defaults to data/{dataset}/{year}.{dataset}.{filetype}                                                                                                        |
+| --path             | Determines where the data will be saved. Defaults to data/{dataset}/{date}.{dataset}.{filetype}                                                                                                        |
 | --datasets         | Which datasets to download. This argument is required. Accepts multiple arguments. Check DATASET_CHOICES inside script to see options for this argument.                                                                                                                    |
 | -v, --verbose      | Increase output verbosity |
 
