@@ -226,6 +226,8 @@ Optional arguments:
 | --no-data             | Adds a No Data section to the colourbar legend. Use this if blank areas are common on this type of map. |
 | -v, --verbose         | Increase output verbosity |
 | --multiprocessing     | Number of processes to use in multiprocessing. |
+| --time_window         | The number of months that this map is portraying. (e.g. 3) |
+| --time_window_type    | Used to determine whether the date of a map is the beginning or the end of the time window, when the --time_window option is used. Options: beginning, end. |
 
 ### truncate_time_dim.py
 

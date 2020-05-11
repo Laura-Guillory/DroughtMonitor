@@ -4,6 +4,7 @@ import os
 import argparse
 import numpy
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 import multiprocessing
 import xarray
 import utils
@@ -53,8 +54,9 @@ def get_options():
     Options are accessed via options.index_name, options.shape, etc.
 
     Required arguments: netcdf, var_name, output_file_base
-    Optional arguments: overwrite, shape, start_date, end_date, title, subtitle, label_position, colours, colourbar_label, colourbar_position, categories, min, max,
-                        levels, region, extent, prototype, no_data, verbose, multiprocessing
+    Optional arguments: overwrite, shape, start_date, end_date, title, subtitle, label_position, colours,
+                        colourbar_label, colourbar_position, categories, min, max, levels, region, extent, prototype,
+                        no_data, verbose, multiprocessing, time_window, time_window_type
 
     Run this with the -h (help) argument for more detailed information. (python generate_maps.py -h)
 
@@ -205,6 +207,20 @@ def get_options():
         type=str,
         choices=['contour', 'pcolor']
     )
+    optional.add_argument(
+        '--time_window',
+        help='The number of months that this map is portraying. (e.g. 3)',
+        default=1,
+        type=int
+    )
+    optional.add_argument(
+        '--time_window_type',
+        help='Used to determine whether the date of a map is the beginning or the end of the time window, when the '
+             '--time_window option is used. Options: beginning, end.',
+        choices=['beginning', 'end'],
+        default='beginning',
+        type=str
+    )
     return parser.parse_args()
 
 
@@ -219,6 +235,10 @@ def generate_all_maps(options, number_of_worker_processes):
     :param number_of_worker_processes:
     :return:
     """
+    # Verify arguments
+    if options.time_window < 1:
+        raise ValueError('--time_window must 1 or larger.')
+
     # Create folder for results
     os.makedirs(os.path.dirname(options.output_file_base), exist_ok=True)
 
@@ -232,7 +252,7 @@ def generate_all_maps(options, number_of_worker_processes):
 
         if options.region is None:
             if not options.no_downsampling:
-                dataset = dataset.coarsen(time=1, latitude=3, longitude=3, boundary='pad').mean()
+                dataset = dataset.coarsen(dim={'time': 1, lat_label: 3, lon_label: 3}, boundary='pad').mean()
         else:
             shape = read_shape(options.shape)
             regions = [record.geometry for record in shape.records() if record.attributes['NAME_1'] == options.region]
@@ -368,8 +388,17 @@ def generate_map(map_args):
 
     # Add date of this map, and title/subtitle/index name if given
     if date is not None:
-        pyplot.text(options.label_position[0], options.label_position[1], date.strftime('%B %Y'),
-                    transform=ax.transAxes, fontproperties=REGULAR_FONT)
+        if options.time_window is not 1:
+            if options.time_window_type == 'beginning':
+                date2 = date + relativedelta(months=+(options.time_window - 1))
+                date_str = date.strftime('%B %Y') + ' - ' + date2.strftime('%B %Y')
+            else:
+                date2 = date + relativedelta(months=-(options.time_window - 1))
+                date_str = date2.strftime('%B %Y') + ' - ' + date.strftime('%B %Y')
+        else:
+            date_str = date.strftime('%B %Y')
+        pyplot.text(options.label_position[0], options.label_position[1], date_str, transform=ax.transAxes,
+                    fontproperties=REGULAR_FONT)
     if options.title:
         pyplot.text(options.label_position[0], options.label_position[1] + .05, options.title, transform=ax.transAxes,
                     fontproperties=TITLE_FONT)
