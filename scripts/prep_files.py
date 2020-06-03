@@ -167,10 +167,14 @@ def ascii_2_netcdf(dataset_name, file_path):
     input_paths = glob.glob(file_path.format(dataset=dataset_name, year='*', filetype='txt.Z'))
     for path in input_paths:
         if os.name == 'nt':
-            subprocess.call(['C:/Program Files/7-Zip/7z.exe', 'e', path, '-o' + os.path.dirname(path), '-y'],
-                            stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT, close_fds=True)
+            try:
+                subprocess.call(['C:/Program Files/7-Zip/7z.exe', 'e', path, '-o' + os.path.dirname(path), '-y'],
+                                stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT, close_fds=True)
+            except FileNotFoundError:
+                raise Exception('Please install 7-Zip to C:/Program Files/7-Zip/7z.exe.')
         else:
-            subprocess.call(['uncompress', path], stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT, close_fds=True)
+            subprocess.call(['uncompress', path], stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT,
+                            close_fds=True)
     # Convert files to netcdf
     dates = []
     input_paths = glob.glob(file_path.format(dataset=dataset_name, year='*', filetype='txt'))
