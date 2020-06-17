@@ -12,7 +12,6 @@ import bottleneck
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
 
-
 """
 Script to calculate the Australian Combined Drought Indicator.
 Expects input of four netCDF files: Normalised Difference Vegetation Index, Short Crop Evapotranspiration, 3-month SPI,
@@ -238,7 +237,7 @@ def calc_cdi(dataset: xarray.Dataset, options):
     attrs = {var: dataset[var].attrs for var in set(dataset.keys()).union(set(dataset.dims))}
     stacked = dataset.cdi.stack(x=['latitude', 'longitude', 'time'])
     stacked = stacked.compute()
-    stacked = stacked.rank(dim='x', pct=True, keep_attrs=False)
+    #stacked = stacked.rank(dim='x', pct=True, keep_attrs=False)
     dataset['cdi'] = stacked.unstack(dim='x')
     for key in attrs:
         dataset[key].attrs = attrs[key]
@@ -260,7 +259,14 @@ def calc_cdi_for_month(dataset: xarray.Dataset, weights, options):
                      + dataset[options.spi_var] * weights.spi \
                      + (1 - dataset[options.et_var]) * weights.et \
                      + dataset[options.sm_var] * weights.sm
-    dataset = dataset.drop('month', errors='ignore')
+    alternate_weights = weights
+    alternate_weights['spi'] = alternate_weights.spi + alternate_weights.ndvi / 3
+    alternate_weights['sm'] = alternate_weights.sm + alternate_weights.ndvi / 3
+    alternate_weights['et'] = alternate_weights.et + alternate_weights.ndvi / 3
+    cdi_no_ndvi = dataset[options.spi_var] * alternate_weights.spi \
+                  + (1 - dataset[options.et_var]) * alternate_weights.et \
+                  + dataset[options.sm_var] * alternate_weights.sm
+    dataset['cdi'] = dataset['cdi'].fillna(cdi_no_ndvi)
     return dataset['cdi']
 
 
