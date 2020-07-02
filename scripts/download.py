@@ -56,7 +56,7 @@ def download_datasets(path, datasets):
                     # Always redownload most recent year
                     if file_already_downloaded(destination) and (year != current_year or month != current_month):
                         continue
-                    if year == current_year and month > current_month: # The future
+                    if year == current_year and month > current_month:  # The future
                         continue
                     try_to_download(url, destination)
         elif dataset == 'soil_moisture':
@@ -113,7 +113,7 @@ def try_to_download(url, destination):
         try:
             urllib.request.urlretrieve(url, destination)
             return
-        except (HTTPError, ValueError) as e:
+        except (HTTPError, ValueError):
             LOGGER.info('URL does not exist: ' + url)
             return
         except (TimeoutError, ConnectionResetError) as e:
@@ -175,7 +175,7 @@ def fix_time_dimension(dataset_path):
     # For whatever reason an extra variable gets inserted into these files that makes the time decoding utterly fail.
     # The soil moisture file can't be opened properly without doing this
     with xarray.open_dataset(dataset_path, chunks={'time': 10}, decode_times=False) as dataset:
-        dataset = dataset.drop('time_bounds', errors='ignore')
+        dataset = dataset.drop_vars('time_bounds', errors='ignore')
         utils.save_to_netcdf(dataset, dataset_path + '.temp')
     os.remove(dataset_path)
     os.rename(dataset_path + '.temp', dataset_path)

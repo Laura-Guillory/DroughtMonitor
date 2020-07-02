@@ -12,3 +12,5 @@ cython
 gdal
 fiona
 regionmask
+toolz
+bottleneck

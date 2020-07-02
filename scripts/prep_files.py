@@ -121,7 +121,7 @@ def calc_monthly_avg_temp(file_path):
         dataset['avg_temp'] = (dataset.max_temp + dataset.min_temp) / 2
         dataset['avg_temp'].attrs['units'] = dataset.max_temp.units
         # Dimensions must be in this order to be accepted by the climate indices tool
-        dataset = dataset.drop('max_temp').drop('min_temp').drop('crs', errors='ignore').transpose('lat', 'lon', 'time')
+        dataset = dataset.drop_vars(['max_temp', 'min_temp', 'crs'], errors='ignore').transpose('lat', 'lon', 'time')
         output_file_path = get_merged_dataset_path(file_path, 'monthly_avg_temp')
         utils.save_to_netcdf(dataset, output_file_path)
 
@@ -209,7 +209,7 @@ def combine_soil_moisture(file_path):
                         'to include historical data, please place it at: ' + historical_dataset_path)
         shutil.copyfile(recent_dataset_path, output_file_path)
         return
-    historical_dataset = historical_dataset.drop('time_bnds', errors='ignore')
+    historical_dataset = historical_dataset.drop_vars('time_bnds', errors='ignore')
     recent_dataset = xarray.open_dataset(recent_dataset_path, chunks={'time': 10})
     date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     date = date - relativedelta(months=1)
