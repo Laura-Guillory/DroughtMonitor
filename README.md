@@ -39,9 +39,10 @@ data.
        python download.py -v --datasets monthly_rain et_short_crop ndvi soil_moisture
     ```
     
-    This will download all the input data from [LongPaddock's SILO](https://silo.longpaddock.qld.gov.au/), and the Bureau 
-    of Meteorology [(NDVI](http://www.bom.gov.au/jsp/awap/ndvi/index.jsp), 
-    [Soil Moisture)](http://www.bom.gov.au/water/landscape) and save the files in the default directory, `data`.
+    This will download the input data from 
+    [LongPaddock's SILO (Rainfall, Evapotranspiration)](https://silo.longpaddock.qld.gov.au/), 
+    [Copernicus Land Service (NDVI)](https://land.copernicus.eu/global/products/ndvi), and the [Bureau of Meteorology 
+    (Soil Moisture)](http://www.bom.gov.au/water/landscape) and save the files in the default directory, `data`.
 
 2. Prepare the data
 
@@ -110,7 +111,7 @@ Arguments:
 
 |||
 |--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| --path             | Determines where the data will be saved. Defaults to data/{dataset}/{year}.{dataset}.{filetype}                                                                                                        |
+| --path             | Determines where the data will be saved. Defaults to data/{dataset}/{date}.{dataset}.{filetype}                                                                                                        |
 | --datasets         | Which datasets to download. This argument is required. Accepts multiple arguments. Check DATASET_CHOICES inside script to see options for this argument.                                                                                                                    |
 | -v, --verbose      | Increase output verbosity |
 
@@ -120,15 +121,12 @@ delete it before running again.
 ### prep_files.py
 
 Prepares files before use in the [Climate Indices](https://github.com/monocongo/climate_indices) package or calculating 
-the CDI. The data downloaded from SILO is split into one file per year, and NDVI data downloaded from the Bureau of 
-Meteorology is split into one file per month. This consolidates each dataset into one file, and reorders the 
+the CDI. The data downloaded from SILO is split into one file per year, and NDVI data downloaded from Copernicus Global 
+Land Service is split into one file per ten days. This consolidates each dataset into one file, and reorders the 
 dimensions into (lat, lon, time).
 
 This script can also calculate an average temperature dataset in monthly format, as long as minimum and maximum 
 temperature datasets are present.
-
-In the case of the NDVI dataset (which are downloaded as gridded ASCII files), it will be converted to netCDF before
-being processed.
 
 In the case of the soil moisture dataset (which is not split into years and downloaded as a single file), it will be
 combined with historical data if present. 
@@ -226,6 +224,8 @@ Optional arguments:
 | --no-data             | Adds a No Data section to the colourbar legend. Use this if blank areas are common on this type of map. |
 | -v, --verbose         | Increase output verbosity |
 | --multiprocessing     | Number of processes to use in multiprocessing. |
+| --time_window         | The number of months that this map is portraying. (e.g. 3) |
+| --time_window_type    | Used to determine whether the date of a map is the beginning or the end of the time window, when the --time_window option is used. Options: beginning, end. |
 
 ### truncate_time_dim.py
 
