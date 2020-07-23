@@ -2,7 +2,6 @@ import os
 from dask.diagnostics import ProgressBar
 from utils.logger_writer import LoggerWriter
 import logging
-import warnings
 
 """
 Saves an xarray Dataset to a netCDF file, with a progress bar (really common use case in this package).
