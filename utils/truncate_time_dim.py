@@ -63,7 +63,7 @@ def get_options():
 
 
 def truncate_time_dim(dataset):
-    dataset['time'].data = numpy.array(dataset['time'].data, dtype='datetime64[M]')
+    dataset = dataset.assign(time=numpy.array(dataset['time'].values, dtype='datetime64[M]'))
     return dataset
 
 

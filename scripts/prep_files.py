@@ -5,13 +5,12 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import utils
 import glob
-import subprocess
 import logging
 import warnings
 import shutil
 import calendar
 import math
-import bottleneck
+import numpy
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -19,10 +18,9 @@ LOGGER = logging.getLogger(__name__)
 DOWNLOADED_DATASETS = ['daily_rain', 'et_morton_actual', 'et_morton_potential', 'et_morton_wet', 'et_short_crop',
                        'et_tall_crop', 'evap_morton_lake', 'evap_pan', 'evap_syn', 'max_temp', 'min_temp',
                        'monthly_rain', 'mslp', 'radiation', 'rh_tmax', 'vp', 'vp_deficit', 'ndvi', 'soil_moisture']
-ASCII_DATASETS = ['ndvi']
 COMPUTED_DATASETS = ['monthly_avg_temp', 'monthly_et_short_crop']
 CALC_MORE_TIME_PERIODS = ['monthly_et_short_crop', 'ndvi', 'soil_moisture']
-OTHER_DATASETS = ['soil_moisture']
+OTHER_DATASETS = ['soil_moisture', 'ndvi']
 DEFAULT_PATH = 'data/{dataset}/{year}.{dataset}.{filetype}'
 DAILY_DATASETS = ['daily_rain', 'et_short_crop', 'max_temp', 'min_temp']
 
@@ -35,9 +33,7 @@ def main():
     for dataset_name in options.datasets:
         # Create folder for results
         os.makedirs(os.path.dirname(options.path.format(dataset=dataset_name, year='', filetype='-')), exist_ok=True)
-        if dataset_name in ASCII_DATASETS:
-            ascii_2_netcdf(dataset_name, options.path)
-        elif dataset_name not in COMPUTED_DATASETS + OTHER_DATASETS:
+        if dataset_name not in COMPUTED_DATASETS + OTHER_DATASETS:
             merge_years(dataset_name, options.path)
     if 'monthly_avg_temp' in options.datasets:
         calc_monthly_avg_temp(options.path)
@@ -45,6 +41,8 @@ def main():
         calc_monthly_et_short_crop(options.path)
     if 'soil_moisture' in options.datasets:
         combine_soil_moisture(options.path)
+    if 'ndvi' in options.datasets:
+        combine_ndvi(options.path)
     for dataset_name in options.datasets:
         if dataset_name in CALC_MORE_TIME_PERIODS:
             for scale in [3, 6, 9, 12, 24, 36]:
@@ -121,7 +119,7 @@ def calc_monthly_avg_temp(file_path):
         dataset['avg_temp'] = (dataset.max_temp + dataset.min_temp) / 2
         dataset['avg_temp'].attrs['units'] = dataset.max_temp.units
         # Dimensions must be in this order to be accepted by the climate indices tool
-        dataset = dataset.drop('max_temp').drop('min_temp').drop('crs', errors='ignore').transpose('lat', 'lon', 'time')
+        dataset = dataset.drop_vars(['max_temp', 'min_temp', 'crs'], errors='ignore').transpose('lat', 'lon', 'time')
         output_file_path = get_merged_dataset_path(file_path, 'monthly_avg_temp')
         utils.save_to_netcdf(dataset, output_file_path)
 
@@ -161,57 +159,93 @@ def get_merged_dataset_path(file_path, dataset_name):
     return os.path.dirname(merged_file_path) + '/full_' + dataset_name + '.nc'
 
 
-def ascii_2_netcdf(dataset_name, file_path):
-    LOGGER.info('Unpacking ASCII and merging files for: ' + dataset_name)
-    # Unzip all files
-    input_paths = glob.glob(file_path.format(dataset=dataset_name, year='*', filetype='txt.Z'))
-    for path in input_paths:
-        if os.name == 'nt':
-            subprocess.call(['C:/Program Files/7-Zip/7z.exe', 'e', path, '-o' + os.path.dirname(path), '-y'],
-                            stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT, close_fds=True)
-        else:
-            subprocess.call(['uncompress', path], stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT, close_fds=True)
-    # Convert files to netcdf
-    dates = []
-    input_paths = glob.glob(file_path.format(dataset=dataset_name, year='*', filetype='txt'))
-    input_paths.sort()
-    for path in input_paths:
-        file_name = os.path.basename(path)
-        date = file_name.split('.')[0]
-        datetime_object = datetime.strptime(date, '%Y-%m')
-        dates.append(datetime_object)
-    time_dim = xarray.Variable('time', dates)
-    data_array = xarray.concat([xarray.open_rasterio(f) for f in input_paths], dim=time_dim)
-    dataset = data_array.to_dataset(name=dataset_name).squeeze(drop=True).rename({'x': 'longitude', 'y': 'latitude'})
-    dataset = dataset.where(dataset[dataset_name] != 99999.9)
-    dataset['longitude'].attrs['units'] = 'degrees_east'
-    dataset['latitude'].attrs['units'] = 'degrees_north'
-    # Save as one file
-    output_file_path = get_merged_dataset_path(file_path, dataset_name)
-    utils.save_to_netcdf(dataset, output_file_path)
-
-
 def combine_soil_moisture(file_path):
     # Soil moisture is given as two files - one is historical data and the other is recent data downloaded from BoM.
     # There is some overlap. We need to combine these files while giving precedence to the recent data downloaded from
     # BoM
-    historical_dataset_path = file_path.format(dataset='soil_moisture', year='historical', filetype='nc')
-    recent_dataset_path = file_path.format(dataset='soil_moisture', year='recent', filetype='nc')
+    LOGGER.info('Merging files for: soil_moisture')
+    archive_dataset_path = file_path.format(dataset='soil_moisture', year='archive', filetype='nc')
+    realtime_dataset_path = file_path.format(dataset='soil_moisture', year='realtime', filetype='nc')
     output_file_path = get_merged_dataset_path(file_path, 'soil_moisture')
     try:
-        historical_dataset = xarray.open_dataset(historical_dataset_path, chunks={'time': 10})
+        archive_dataset = xarray.open_dataset(archive_dataset_path, chunks={'time': 10})
     except FileNotFoundError:
         logging.warning('Historical data for soil moisture not found. Proceeding with recent data only. If you meant '
-                        'to include historical data, please place it at: ' + historical_dataset_path)
-        shutil.copyfile(recent_dataset_path, output_file_path)
+                        'to include historical data, please place it at: ' + archive_dataset_path)
+        shutil.copyfile(realtime_dataset_path, output_file_path)
         return
-    historical_dataset = historical_dataset.drop('time_bnds', errors='ignore')
-    recent_dataset = xarray.open_dataset(recent_dataset_path, chunks={'time': 10})
+    archive_dataset = archive_dataset.drop_vars('time_bnds', errors='ignore')
+    realtime_dataset = xarray.open_dataset(realtime_dataset_path, chunks={'time': 10})
     date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     date = date - relativedelta(months=1)
-    recent_dataset = recent_dataset.sel(time=slice('1800-01', date))
-    combined = recent_dataset.combine_first(historical_dataset)
+    realtime_dataset = realtime_dataset.sel(time=slice('1800-01', date))
+    combined = realtime_dataset.combine_first(archive_dataset)
     utils.save_to_netcdf(combined, output_file_path)
+
+
+def combine_ndvi(file_path):
+    # NDVI is given as a 1km resolution archive combined with a 300m resolution near real time dataset.
+    # There are several entries per month, which need to be aggregated as well.
+    LOGGER.info('Regridding NDVI')
+    archive_ndvi_paths = glob.glob(file_path.format(dataset='ndvi', year='1km.archive.*', filetype='nc'))
+    for ndvi_path in archive_ndvi_paths:
+        regridded_dataset_path = ndvi_path.replace('1km', '5km')
+        if os.path.isfile(regridded_dataset_path):
+            continue
+        regrid_ndvi(ndvi_path, regridded_dataset_path, {'time': 1, 'lat': 500, 'lon': 500})
+    realtime_ndvi_paths = glob.glob(file_path.format(dataset='ndvi', year='300m.realtime.*', filetype='nc'))
+    for ndvi_path in realtime_ndvi_paths:
+        regridded_dataset_path = ndvi_path.replace('300m', '5km')
+        if os.path.isfile(regridded_dataset_path):
+            continue
+        archive_regridded_dataset_path = regridded_dataset_path.replace('realtime', 'archive')
+        if os.path.isfile(archive_regridded_dataset_path):
+            continue
+        regrid_ndvi(ndvi_path, regridded_dataset_path, {'lat': 200, 'lon': 200})
+
+    # Combine archive and realtime parts
+    LOGGER.info('Merging files for: ndvi')
+    with xarray.open_mfdataset(
+        file_path.format(dataset='ndvi', year='5km.archive.*', filetype='nc'),
+        chunks={'time': 10},
+        combine='by_coords'
+    ) as archive_dataset:
+        archive_dataset = archive_dataset.resample(time='1MS').mean()
+        files = glob.glob(file_path.format(dataset='ndvi', year='5km.realtime.*', filetype='nc'))
+        time_dim = xarray.Variable('time', [datetime.strptime(file.split('.')[2], '%Y-%m-%d') for file in files])
+        if len(files) == 0:
+            archive_dataset = archive_dataset.rename({'NDVI': 'ndvi'})
+            utils.save_to_netcdf(archive_dataset, 'D:/data/ndvi/full_ndvi.nc')
+            return
+        realtime_dataset = xarray.concat([xarray.open_dataset(f) for f in files], dim=time_dim)
+        realtime_dataset = realtime_dataset.resample(time='1MS').mean()
+        realtime_dataset['lat'] = archive_dataset.lat
+        realtime_dataset['lon'] = archive_dataset.lon
+        full_dataset = archive_dataset.combine_first(realtime_dataset)
+        full_dataset = full_dataset.rename({'NDVI': 'ndvi'})
+        utils.save_to_netcdf(full_dataset, 'D:/data/ndvi/full_ndvi.nc')
+
+
+def regrid_ndvi(input_path, output_path, chunks):
+        with xarray.open_dataset(
+            input_path, chunks=chunks, drop_variables=['crs', 'TIME_GRID'], mask_and_scale=False
+        ) as dataset:
+            dataset = dataset.where(dataset.lon >= 112.0, drop=True)
+            dataset = dataset.where(dataset.lon <= 154.0, drop=True)
+            dataset = dataset.where(dataset.lat >= -44.0, drop=True)
+            dataset = dataset.where(dataset.lat <= -10, drop=True)
+            dataset = dataset.where(dataset.NDVI != 254)
+            dataset = dataset.chunk(chunks={'lat': -1})
+            model_lat = numpy.arange(-44.0, -9.975, 0.05)
+            dataset = dataset.interp(lat=model_lat)
+            dataset = dataset.chunk(chunks={'lon': -1})
+            model_lat = numpy.arange(112.0, 154.025, 0.05)
+            dataset = dataset.interp(lon=model_lat)
+            dataset['lat'].attrs['units'] = 'degrees_north'
+            dataset['lat'].attrs['axis'] = 'Y'
+            dataset['lon'].attrs['units'] = 'degrees_east'
+            dataset['lon'].attrs['axis'] = 'X'
+            utils.save_to_netcdf(dataset, output_path)
 
 
 def drop_incomplete_months(dataset):

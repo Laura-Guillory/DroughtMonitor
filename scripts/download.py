@@ -1,5 +1,3 @@
-import urllib.request
-from urllib.error import HTTPError, ContentTooShortError
 import os
 from datetime import datetime
 import argparse
@@ -8,20 +6,26 @@ import logging
 import xarray
 import numpy
 import utils
+import requests
+from requests.auth import HTTPBasicAuth
+from getpass import getpass
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
 
 
 DOWNLOAD_URLS = {'SILO': 'https://s3-ap-southeast-2.amazonaws.com/silo-open-data/annual/{dataset}/{year}.{dataset}.nc',
-                 'NDVI': 'http://www.bom.gov.au/web03/ncc/www/awap/ndvi/ndviave/month/grid/history/nat/{date_range}.Z',
+                 'NDVI': {
+                     'realtime': 'https://land.copernicus.vgt.vito.be/manifest/ndvi300_v1_333m/manifest_cgls_ndvi300_v1'
+                                 '_333m_latest.txt',
+                     'archive': 'https://land.copernicus.vgt.vito.be/manifest/ndvi_v2_1km/manifest_cgls_ndvi_v2_1km_lat'
+                                'est.txt'},
                  'soil_moisture': 'http://www.bom.gov.au/jsp/awra/thredds/fileServer/AWRACMS/values/month/sm_pct.nc'}
 DEFAULT_PATH = 'data/{dataset}/{date}.{dataset}.{filetype}'
 DATASET_CHOICES = ['daily_rain', 'et_morton_actual', 'et_morton_potential', 'et_morton_wet', 'et_short_crop',
                    'et_tall_crop', 'evap_morton_lake', 'evap_pan', 'evap_syn', 'max_temp', 'min_temp', 'monthly_rain',
                    'mslp', 'radiation', 'rh_tmax', 'vp', 'vp_deficit', 'ndvi', 'soil_moisture']
 DAILY_DATASETS = ['daily_rain', 'et_short_crop', 'max_temp', 'min_temp']
-EXCLUDE_DATES = {'ndvi': ['1994-05', '1994-06', '1994-07', '1994-08', '1994-09', '2003-09']}
 
 
 def main():
@@ -44,30 +48,60 @@ def download_datasets(path, datasets):
         current_month = datetime.now().month - 1 if datetime.now().month > 1 else 12
         current_year = datetime.now().year if datetime.now().month > 1 else datetime.now().year - 1
         if dataset == 'ndvi':
-            for year in range(1992, current_year + 1):
-                for month in range(1, 13):
-                    date = '{y}-{m:02d}'.format(y=year, m=month)
-                    if date in EXCLUDE_DATES['ndvi']:
+            # Get archive
+            # Get manifest file
+            manifest_destination = os.path.dirname(path.format(dataset=dataset, date='', filetype='')) \
+                                   + '/archive_manifest.txt'
+            try_to_download(DOWNLOAD_URLS['NDVI']['archive'], manifest_destination)
+            username = input('Username: ')
+            password = getpass()
+            # Download all files listed in manifest
+            with open(manifest_destination) as manifest:
+                for line in manifest:
+                    parts = line.split('/')
+                    year = parts[8]
+                    month = parts[9]
+                    day = parts[10]
+                    date = '{y}-{m}-{d}'.format(y=year, m=month, d=day)
+                    file_destination = path.format(dataset=dataset, date='1km.archive.' + date, filetype='nc')
+                    # Always redownload most recent
+                    if file_already_downloaded(file_destination) and (int(year) != current_year or int(month) != current_month):
                         continue
-                    day_of_year = calendar.monthrange(year, month)[1]
-                    date_range = '{y}{m:02d}01{y}{m:02d}{d}'.format(y=year, m=month, d=day_of_year)
-                    destination = path.format(dataset=dataset, date=date, filetype='txt.Z')
-                    url = DOWNLOAD_URLS['NDVI'].format(date_range=date_range)
-                    # Always redownload most recent year
-                    if file_already_downloaded(destination) and (year != current_year or month != current_month):
+                    if int(year) == current_year and int(month) > current_month:  # The future
                         continue
-                    if year == current_year and month > current_month: # The future
+                    try_to_download(line[:-1], file_destination, auth=(username, password))
+            # Get realtime
+            # Get manifest file
+            manifest_destination = os.path.dirname(path.format(dataset=dataset, date='', filetype='')) \
+                                   + '/realtime_manifest.txt'
+            try_to_download(DOWNLOAD_URLS['NDVI']['realtime'], manifest_destination)
+            # Download all realtime files that aren't in archive
+            with open(manifest_destination) as manifest:
+                for line in manifest:
+                    parts = line.split('/')
+                    year = parts[8]
+                    month = parts[9]
+                    day = parts[10]
+                    date = '{y}-{m}-{d}'.format(y=year, m=month, d=day)
+                    file_destination = path.format(dataset=dataset, date='300m.realtime.' + date, filetype='nc')
+                    archive_file_destination = path.format(dataset=dataset, date='1km.archive.' + date, filetype='nc')
+                    # Always redownload most recent
+                    if file_already_downloaded(file_destination) and (int(year) != current_year or int(month) != current_month):
                         continue
-                    try_to_download(url, destination)
+                    if int(year) == current_year and int(month) > current_month:  # The future
+                        continue
+                    if file_already_downloaded(archive_file_destination):  # Files already in archive
+                        continue
+                    try_to_download(line[:-1], file_destination, auth=(username, password))
         elif dataset == 'soil_moisture':
-            destination = path.format(dataset=dataset, date='recent', filetype='nc')
-            try_to_download(DOWNLOAD_URLS['soil_moisture'], destination)
+            file_destination = path.format(dataset=dataset, date='realtime', filetype='nc')
+            try_to_download(DOWNLOAD_URLS['soil_moisture'], file_destination)
         else:
             for year in range(1889, current_year + 1):
-                destination = path.format(dataset=dataset, date=year, filetype='nc')
+                file_destination = path.format(dataset=dataset, date=year, filetype='nc')
                 url = DOWNLOAD_URLS['SILO'].format(dataset=dataset, year=year)
-                if not file_already_downloaded(destination) or need_to_redownload_month(year, current_month):
-                    try_to_download(url, destination)
+                if not file_already_downloaded(file_destination) or need_to_redownload_month(year, current_month):
+                    try_to_download(url, file_destination)
 
 
 def need_to_redownload_month(file_year, current_month):
@@ -101,26 +135,26 @@ def get_options():
     return parser.parse_args()
 
 
-def try_to_download(url, destination):
+def try_to_download(url, destination, auth=None):
     destination_dir = os.path.dirname(destination)
     os.makedirs(destination_dir, exist_ok=True)
     LOGGER.info('Downloading {} ...'.format(url))
     remaining_download_tries = 2
-    opener = urllib.request.build_opener()
-    opener.addheaders = [('User-agent', 'Mozilla/5.0')]
-    urllib.request.install_opener(opener)
     while remaining_download_tries > 0:
         try:
-            urllib.request.urlretrieve(url, destination)
+            if auth is not None:
+                username, password = auth
+                login = HTTPBasicAuth(username, password)
+            else:
+                login = None
+            with requests.get(url, stream=True, auth=login) as r:
+                r.raise_for_status()
+                with open(destination, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
             return
-        except (HTTPError, ValueError) as e:
-            LOGGER.info('URL does not exist: ' + url)
-            return
-        except (TimeoutError, ConnectionResetError) as e:
-            LOGGER.warning(e)
-            remaining_download_tries -= 1
-            continue
-        except ContentTooShortError:
+        except Exception as e:
+            LOGGER.info(repr(e))
             remaining_download_tries -= 1
             continue
     LOGGER.warning('Download failed.')
@@ -175,7 +209,7 @@ def fix_time_dimension(dataset_path):
     # For whatever reason an extra variable gets inserted into these files that makes the time decoding utterly fail.
     # The soil moisture file can't be opened properly without doing this
     with xarray.open_dataset(dataset_path, chunks={'time': 10}, decode_times=False) as dataset:
-        dataset = dataset.drop('time_bounds', errors='ignore')
+        dataset = dataset.drop_vars('time_bounds', errors='ignore')
         utils.save_to_netcdf(dataset, dataset_path + '.temp')
     os.remove(dataset_path)
     os.rename(dataset_path + '.temp', dataset_path)

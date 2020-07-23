@@ -12,3 +12,7 @@ cython
 gdal
 fiona
 regionmask
+toolz
+bottleneck
+requests
+h5netcdf
