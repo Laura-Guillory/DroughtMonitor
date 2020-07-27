@@ -222,7 +222,7 @@ def combine_ndvi(file_path):
         realtime_dataset['lat'] = archive_dataset.lat
         realtime_dataset['lon'] = archive_dataset.lon
         full_dataset = archive_dataset.combine_first(realtime_dataset)
-        full_dataset = full_dataset.rename({'NDVI': 'ndvi'})
+        full_dataset = full_dataset.rename({'NDVI': 'ndvi', 'lat': 'latitude', 'lon': 'longitude'})
         utils.save_to_netcdf(full_dataset, 'D:/data/ndvi/full_ndvi.nc')
 
 
