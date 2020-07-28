@@ -214,7 +214,7 @@ def combine_ndvi(file_path):
         files = glob.glob(file_path.format(dataset='ndvi', year='5km.realtime.*', filetype='nc'))
         time_dim = xarray.Variable('time', [datetime.strptime(file.split('.')[2], '%Y-%m-%d') for file in files])
         if len(files) == 0:
-            archive_dataset = archive_dataset.rename({'NDVI': 'ndvi'})
+            archive_dataset = archive_dataset.rename({'NDVI': 'ndvi', 'lat': 'latitude', 'lon': 'longitude'})
             utils.save_to_netcdf(archive_dataset, 'D:/data/ndvi/full_ndvi.nc')
             return
         realtime_dataset = xarray.concat([xarray.open_dataset(f) for f in files], dim=time_dim)
