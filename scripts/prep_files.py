@@ -11,6 +11,8 @@ import shutil
 import calendar
 import math
 import numpy
+from cartopy.io import shapereader
+import regionmask
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -214,16 +216,29 @@ def combine_ndvi(file_path):
         files = glob.glob(file_path.format(dataset='ndvi', year='5km.realtime.*', filetype='nc'))
         time_dim = xarray.Variable('time', [datetime.strptime(file.split('.')[2], '%Y-%m-%d') for file in files])
         if len(files) == 0:
-            archive_dataset = archive_dataset.rename({'NDVI': 'ndvi', 'lat': 'latitude', 'lon': 'longitude'})
-            utils.save_to_netcdf(archive_dataset, 'D:/data/ndvi/full_ndvi.nc')
-            return
-        realtime_dataset = xarray.concat([xarray.open_dataset(f) for f in files], dim=time_dim)
-        realtime_dataset = realtime_dataset.resample(time='1MS').mean()
-        realtime_dataset['lat'] = archive_dataset.lat
-        realtime_dataset['lon'] = archive_dataset.lon
-        full_dataset = archive_dataset.combine_first(realtime_dataset)
+            full_dataset = archive_dataset
+        else:
+            realtime_dataset = xarray.concat([xarray.open_dataset(f) for f in files], dim=time_dim)
+            realtime_dataset = realtime_dataset.resample(time='1MS').mean()
+            realtime_dataset['lat'] = archive_dataset.lat
+            realtime_dataset['lon'] = archive_dataset.lon
+            full_dataset = archive_dataset.combine_first(realtime_dataset)
+        shape = read_shape('shapes/gadm36_AUS_0.shp')
+        regions = [record.geometry for record in shape.records() if record.attributes['NAME_0'] == 'Australia']
+        area = regionmask.Regions(regions)
+        mask = area.mask(full_dataset.lon, full_dataset.lat, lon_name='lon', lat_name='lat')
+        full_dataset = full_dataset.where(~numpy.isnan(mask))
         full_dataset = full_dataset.rename({'NDVI': 'ndvi', 'lat': 'latitude', 'lon': 'longitude'})
         utils.save_to_netcdf(full_dataset, 'D:/data/ndvi/full_ndvi.nc')
+
+
+def read_shape(shapefile=None):
+    if shapefile is None:
+        shp_file = shapereader.natural_earth(resolution='110m', category='cultural',
+                                             name='admin_1_states_provinces_lines')
+    else:
+        shp_file = shapefile
+    return shapereader.Reader(shp_file)
 
 
 def regrid_ndvi(input_path, output_path, chunks):
