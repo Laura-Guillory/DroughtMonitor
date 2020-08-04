@@ -180,7 +180,7 @@ def check_data_is_current(path, dataset_names):
             else:
                 LOGGER.info(dataset_name + ": No")
         elif dataset_name == 'soil_moisture':
-            destination = path.format(dataset=dataset_name, date='recent', filetype='nc')
+            destination = path.format(dataset=dataset_name, date='realtime', filetype='nc')
             fix_time_dimension(destination)
             with xarray.open_dataset(destination) as soil_moisture:
                 date_modified_str = soil_moisture.attrs['date_modified']
@@ -211,14 +211,10 @@ def fix_time_dimension(dataset_path):
     with xarray.open_dataset(dataset_path, chunks={'time': 10}, decode_times=False) as dataset:
         dataset = dataset.drop_vars('time_bounds', errors='ignore')
         utils.save_to_netcdf(dataset, dataset_path + '.temp')
-    os.remove(dataset_path)
-    os.rename(dataset_path + '.temp', dataset_path)
     # Dates need to be truncated to each month and saved to file - if not saved to file the combine doesn't work.
-    with xarray.open_dataset(dataset_path, chunks={'time': 10}) as dataset:
+    with xarray.open_dataset(dataset_path + '.temp', chunks={'time': 10}) as dataset:
         dataset = utils.truncate_time_dim(dataset)
-        utils.save_to_netcdf(dataset, dataset_path + '.temp')
-    os.remove(dataset_path)
-    os.rename(dataset_path + '.temp', dataset_path)
+        utils.save_to_netcdf(dataset, dataset_path)
 
 
 if __name__ == '__main__':
