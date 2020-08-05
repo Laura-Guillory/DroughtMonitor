@@ -252,7 +252,10 @@ def generate_all_maps(options, number_of_worker_processes):
 
         if options.region is None:
             if not options.no_downsampling:
-                dataset = dataset.coarsen(time=1, latitude=3, longitude=3, boundary='pad').mean()
+                try:
+                    dataset = dataset.coarsen(time=1, latitude=3, longitude=3, boundary='pad').mean()
+                except ValueError:
+                    dataset = dataset.coarsen(time=1, lat=3, lon=3, boundary='pad').mean()
         else:
             shape = read_shape(options.shape)
             regions = [record.geometry for record in shape.records() if record.attributes['NAME_1'] == options.region]
