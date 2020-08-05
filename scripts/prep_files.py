@@ -13,6 +13,7 @@ import math
 import numpy
 from cartopy.io import shapereader
 import regionmask
+import multiprocessing
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -29,30 +30,61 @@ DAILY_DATASETS = ['daily_rain', 'et_short_crop', 'max_temp', 'min_temp']
 
 def main():
     start_time = datetime.now()
-    LOGGER.info('Starting time: ' + str(start_time))
     options = get_options()
     LOGGER.setLevel(options.verbose)
+    LOGGER.info('Starting time: ' + str(start_time))
+
+    if options.multiprocessing == "single":
+        number_of_worker_processes = 1
+    elif options.multiprocessing == "all":
+        number_of_worker_processes = multiprocessing.cpu_count()
+    else:
+        number_of_worker_processes = multiprocessing.cpu_count() - 1
+
+    job_data = []
     for dataset_name in options.datasets:
-        # Create folder for results
-        os.makedirs(os.path.dirname(options.path.format(dataset=dataset_name, year='', filetype='-')), exist_ok=True)
-        if dataset_name not in COMPUTED_DATASETS + OTHER_DATASETS:
-            merge_years(dataset_name, options.path)
-    if 'monthly_avg_temp' in options.datasets:
-        calc_monthly_avg_temp(options.path)
-    if 'monthly_et_short_crop' in options.datasets:
-        calc_monthly_et_short_crop(options.path)
-    if 'soil_moisture' in options.datasets:
-        combine_soil_moisture(options.path)
-    if 'ndvi' in options.datasets:
-        combine_ndvi(options.path)
+        if dataset_name in DOWNLOADED_DATASETS + OTHER_DATASETS:
+            job_data.append((dataset_name, options))
+    pool = multiprocessing.Pool(number_of_worker_processes)
+    pool.map(process_dataset, job_data)
+    pool.close()
+    pool.join()
+
+    # monthly_avg_temp and monthly_et_short_crop can't be calculated until max_temp, min_temp and et_short_crop are done
+    job_data = []
     for dataset_name in options.datasets:
-        if dataset_name in CALC_MORE_TIME_PERIODS:
-            for scale in [3, 6, 9, 12, 24, 36]:
-                avg_over_period(dataset_name, options.path, scale)
+        if dataset_name in COMPUTED_DATASETS:
+            job_data.append((dataset_name, options))
+    pool = multiprocessing.Pool(number_of_worker_processes)
+    pool.map(process_dataset, job_data)
+    pool.close()
+    pool.join()
+
     end_time = datetime.now()
     LOGGER.info('End time: ' + str(end_time))
     elapsed_time = end_time - start_time
     LOGGER.info('Elapsed time: ' + str(elapsed_time))
+
+
+def process_dataset(job_args):
+    dataset_name, options = job_args
+    LOGGER.setLevel(options.verbose)
+
+    # Create folder for results
+    os.makedirs(os.path.dirname(options.path.format(dataset=dataset_name, year='', filetype='-')), exist_ok=True)
+    if dataset_name not in COMPUTED_DATASETS + OTHER_DATASETS:
+        merge_years(dataset_name, options.path)
+    if 'monthly_avg_temp' == dataset_name:
+        calc_monthly_avg_temp(options.path)
+    if 'monthly_et_short_crop' == dataset_name:
+        calc_monthly_et_short_crop(options.path)
+    if 'soil_moisture' == dataset_name:
+        combine_soil_moisture(options.path)
+    if 'ndvi' == dataset_name:
+        combine_ndvi(options.path)
+    if dataset_name in CALC_MORE_TIME_PERIODS:
+        for scale in [3, 6, 9, 12, 24, 36]:
+            avg_over_period(dataset_name, options.path, scale)
 
 
 def get_options():
@@ -68,25 +100,34 @@ def get_options():
     :return:
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument(
+    parser._action_groups.pop()
+    required = parser.add_argument_group('Required arguments')
+    optional = parser.add_argument_group('Optional arguments')
+    required.add_argument(
         '--datasets',
         help='Choose which datasets to prepare.',
         choices=DOWNLOADED_DATASETS + COMPUTED_DATASETS + ['all'],
         nargs='*',
         required=True
     )
-    parser.add_argument(
+    required.add_argument(
         '--path',
         help='Determines where the input files can be found. Defaults to data/{dataset}/{year}.{dataset}.nc. Output '
              'will be saved in the same directory as \'full_{dataset}.nc\'',
         default=DEFAULT_PATH
     )
-    parser.add_argument(
+    optional.add_argument(
         '-v', '--verbose',
         help='Increase output verbosity',
         action='store_const',
         const=logging.INFO,
         default=logging.WARN
+    )
+    optional.add_argument(
+        '--multiprocessing',
+        help='Number of processes to use in multiprocessing.',
+        choices=["single", "all_but_one", "all"],
+        default="all_but_one",
     )
     args = parser.parse_args()
     if args.datasets == 'all':
@@ -229,7 +270,8 @@ def combine_ndvi(file_path):
         mask = area.mask(full_dataset.lon, full_dataset.lat, lon_name='lon', lat_name='lat')
         full_dataset = full_dataset.where(~numpy.isnan(mask))
         full_dataset = full_dataset.rename({'NDVI': 'ndvi', 'lat': 'latitude', 'lon': 'longitude'})
-        utils.save_to_netcdf(full_dataset, 'D:/data/ndvi/full_ndvi.nc')
+        output_file_path = get_merged_dataset_path(file_path, 'ndvi')
+        utils.save_to_netcdf(full_dataset, output_file_path)
 
 
 def read_shape(shapefile=None):
