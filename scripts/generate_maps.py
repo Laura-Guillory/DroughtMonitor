@@ -388,7 +388,7 @@ def generate_map(map_args):
 
     # Add date of this map, and title/subtitle/index name if given
     if date is not None:
-        if options.time_window is not 1:
+        if options.time_window != 1:
             if options.time_window_type == 'beginning':
                 date2 = date + relativedelta(months=+(options.time_window - 1))
                 date_str = date.strftime('%B %Y') + ' - ' + date2.strftime('%B %Y')
@@ -414,7 +414,7 @@ def generate_map(map_args):
                     horizontalalignment='center', verticalalignment='center')
 
     # Save map
-    pyplot.savefig(file_path, dpi=150, bbox_inches='tight', quality=80)
+    pyplot.savefig(file_path, dpi=150, bbox_inches='tight', pil_kwargs={'quality': 80})
     pyplot.close()
 
 
