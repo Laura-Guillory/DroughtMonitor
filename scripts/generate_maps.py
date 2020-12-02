@@ -357,7 +357,7 @@ def generate_map(map_args):
         else:
             cmap = matplotlib.colors.ListedColormap(options.colours)
             im = ax.pcolormesh(data[longitude['label']], data[latitude['label']], data[options.var_name], cmap=cmap,
-                               transform=cartopy.crs.PlateCarree(), zorder=1)
+                               transform=cartopy.crs.PlateCarree(), zorder=1, vmin=levels[0], vmax=levels[-1])
 
     # Draw borders
     for state in shape.records():
