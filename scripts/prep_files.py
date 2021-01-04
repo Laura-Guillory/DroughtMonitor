@@ -260,6 +260,7 @@ def combine_ndvi(file_path):
             full_dataset = archive_dataset
         else:
             realtime_dataset = xarray.concat([xarray.open_dataset(f) for f in files], dim=time_dim)
+            realtime_dataset = realtime_dataset.sortby('time')
             realtime_dataset = realtime_dataset.resample(time='1MS').mean()
             realtime_dataset['lat'] = archive_dataset.lat
             realtime_dataset['lon'] = archive_dataset.lon
