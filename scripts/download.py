@@ -147,7 +147,7 @@ def try_to_download(url, destination, auth=None):
                 login = HTTPBasicAuth(username, password)
             else:
                 login = None
-            with requests.get(url, stream=True, auth=login) as r:
+            with requests.get(url, stream=True, auth=login, headers={'User-Agent': 'Mozilla/5.0'}) as r:
                 r.raise_for_status()
                 with open(destination, 'wb') as f:
                     for chunk in r.iter_content(chunk_size=8192):
