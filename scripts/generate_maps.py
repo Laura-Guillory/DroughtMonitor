@@ -421,7 +421,7 @@ def generate_map(map_args):
 def read_shape(shapefile=None):
     if shapefile is None:
         shp_file = shapereader.natural_earth(resolution='110m', category='cultural',
-                                             name='admin_1_states_provinces_lines')
+                                             name='admin_1_states_provinces')
     else:
         shp_file = shapefile
     return shapereader.Reader(shp_file)
