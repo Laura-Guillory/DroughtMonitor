@@ -110,7 +110,7 @@ def get_options():
     optional.add_argument(
         '--label_position',
         help='Sets the position of the title, subtitle and date on the image. Given as a fraction of the image from '
-             'the bottom-left corner. Example: 0.5 0.5',
+             'the bottom-left corner. Default: 0.1 0.05',
         nargs='+',
         type=float,
         default=[.1, .05]
@@ -129,7 +129,7 @@ def get_options():
     optional.add_argument(
         '--colourbar_position',
         help='Sets the position of the colourbar. Given as a fraction of the image from the bottom-left corner. '
-             'Example: 0.5 0.5',
+             'Default: 0.807 0.6',
         nargs='+',
         type=float,
         default=[0.807, 0.6]
