@@ -16,7 +16,7 @@ LOGGER = logging.getLogger(__name__)
 
 DOWNLOAD_URLS = {'SILO': 'https://s3-ap-southeast-2.amazonaws.com/silo-open-data/annual/{dataset}/{year}.{dataset}.nc',
                  'NDVI': {
-                     'realtime': 'https://land.copernicus.vgt.vito.be/manifest/ndvi300_v1_333m/manifest_cgls_ndvi300_v1'
+                     'realtime': 'https://land.copernicus.vgt.vito.be/manifest/ndvi300_v2_333m/manifest_cgls_ndvi300_v2'
                                  '_333m_latest.txt',
                      'archive': 'https://land.copernicus.vgt.vito.be/manifest/ndvi_v2_1km/manifest_cgls_ndvi_v2_1km_lat'
                                 'est.txt'},
@@ -40,6 +40,10 @@ def main():
     path = options.path if options.path else DEFAULT_PATH
     download_datasets(path, chosen_datasets)
     check_data_is_current(path, chosen_datasets)
+    end_time = datetime.now()
+    LOGGER.info('End time: ' + str(end_time))
+    elapsed_time = end_time - start_time
+    LOGGER.info('Elapsed time: ' + str(elapsed_time))
 
 
 def download_datasets(path, datasets):
