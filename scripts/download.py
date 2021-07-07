@@ -178,7 +178,7 @@ def check_data_is_current(path, dataset_names):
     LOGGER.info(date.strftime('Checking if data has been released for %B %Y:'))
     for dataset_name in dataset_names:
         if dataset_name == 'ndvi':
-            destination = path.format(dataset=dataset_name, date=date.strftime('%Y-%m'), filetype='txt.Z')
+            destination = path.format(dataset=dataset_name, date='300m.realtime.' + date.strftime('%Y-%m-21'), filetype='nc')
             if os.path.exists(destination):
                 LOGGER.info(dataset_name + ": Yes")
             else:
