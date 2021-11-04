@@ -285,25 +285,25 @@ def read_shape(shapefile=None):
 
 
 def regrid_ndvi(input_path, output_path, chunks):
-        with xarray.open_dataset(
-            input_path, chunks=chunks, drop_variables=['crs', 'TIME_GRID'], mask_and_scale=False
-        ) as dataset:
-            dataset = dataset.where(dataset.lon >= 112.0, drop=True)
-            dataset = dataset.where(dataset.lon <= 154.0, drop=True)
-            dataset = dataset.where(dataset.lat >= -44.0, drop=True)
-            dataset = dataset.where(dataset.lat <= -10, drop=True)
-            dataset = dataset.where(dataset.NDVI != 254)
-            dataset = dataset.chunk(chunks={'lat': -1})
-            model_lat = numpy.arange(-44.0, -9.975, 0.05)
-            dataset = dataset.interp(lat=model_lat)
-            dataset = dataset.chunk(chunks={'lon': -1})
-            model_lat = numpy.arange(112.0, 154.025, 0.05)
-            dataset = dataset.interp(lon=model_lat)
-            dataset['lat'].attrs['units'] = 'degrees_north'
-            dataset['lat'].attrs['axis'] = 'Y'
-            dataset['lon'].attrs['units'] = 'degrees_east'
-            dataset['lon'].attrs['axis'] = 'X'
-            utils.save_to_netcdf(dataset, output_path)
+    with xarray.open_dataset(
+        input_path, chunks=chunks, drop_variables=['crs', 'TIME_GRID'], mask_and_scale=False
+    ) as dataset:
+        dataset = dataset.where(dataset.lon >= 112.0, drop=True)
+        dataset = dataset.where(dataset.lon <= 154.0, drop=True)
+        dataset = dataset.where(dataset.lat >= -44.0, drop=True)
+        dataset = dataset.where(dataset.lat <= -10, drop=True)
+        dataset = dataset.where(dataset.NDVI != 254)
+        dataset = dataset.chunk(chunks={'lat': -1})
+        model_lat = numpy.arange(-44.0, -9.975, 0.05)
+        dataset = dataset.interp(lat=model_lat)
+        dataset = dataset.chunk(chunks={'lon': -1})
+        model_lat = numpy.arange(112.0, 154.025, 0.05)
+        dataset = dataset.interp(lon=model_lat)
+        dataset['lat'].attrs['units'] = 'degrees_north'
+        dataset['lat'].attrs['axis'] = 'Y'
+        dataset['lon'].attrs['units'] = 'degrees_east'
+        dataset['lon'].attrs['axis'] = 'X'
+        utils.save_to_netcdf(dataset, output_path)
 
 
 def drop_incomplete_months(dataset):
