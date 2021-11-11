@@ -78,8 +78,8 @@ def main():
         calc_cdi(combined_dataset, options)
 
     # Remove temporary percentile ranked files
-    # for file in ranked_files:
-    #     os.remove(file)
+    for file in ranked_files:
+        os.remove(file)
 
     end_time = datetime.now()
     LOGGER.info('End time: ' + str(end_time))
