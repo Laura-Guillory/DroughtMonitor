@@ -7,12 +7,14 @@ Pillow
 matplotlib
 scipy
 rasterio
+rioxarray
 Cartopy
 cython
 gdal
 fiona
-regionmask
 toolz
 bottleneck
 requests
 h5netcdf
+shapely
+descartes

@@ -1,4 +1,5 @@
 import cartopy
+from shapely.ops import cascaded_union
 from cartopy.io import shapereader
 import os
 import argparse
@@ -12,8 +13,10 @@ import logging
 import matplotlib
 from matplotlib.font_manager import FontProperties
 from matplotlib import pyplot
+import matplotlib.patches
 import warnings
-import regionmask
+import rioxarray
+from descartes import PolygonPatch
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -24,7 +27,18 @@ REGULAR_FONT = FontProperties(fname='fonts/Roboto-Light.ttf', size=13)
 SMALL_FONT = FontProperties(fname='fonts/Roboto-Light.ttf', size=10)
 OVERLAY_FONT = FontProperties(fname='fonts/Roboto-Medium.ttf', size=70)
 
+TITLE_REGIONAL_FONT = FontProperties(fname='fonts/Roboto-Medium.ttf', size=11)
+SUBTITLE_REGIONAL_FONT = FontProperties(fname='fonts/Roboto-LightItalic.ttf', size=9)
+REGULAR_REGIONAL_FONT = FontProperties(fname='fonts/Roboto-Light.ttf', size=10)
+SMALL_REGIONAL_FONT = FontProperties(fname='fonts/Roboto-Light.ttf', size=8)
+OVERLAY_REGIONAL_FONT = FontProperties(fname='fonts/Roboto-Medium.ttf', size=56)
+
 COLORBAR_LABELS_X_OFFSET = 1.3
+
+REGIONS = {
+    'SEQ': {'Brisbane', 'Moreton Bay', 'Logan', 'Ipswich', 'Redland', 'Scenic Rim', 'Somerset', 'Lockyer Valley',
+            'Gold Coast', 'Sunshine Coast', 'Toowoomba'}
+}
 
 
 def main():
@@ -255,14 +269,16 @@ def generate_all_maps(options, number_of_worker_processes):
                 dataset = dataset.coarsen(dim={'time': 1, lat_label: 3, lon_label: 3}, boundary='pad').mean()
         else:
             shape = read_shape(options.shape)
-            regions = [record.geometry for record in shape.records() if record.attributes['NAME_1'] == options.region]
+            if options.region in REGIONS:
+                regions = [record.geometry for record in shape.records() if record.attributes['NAME_2'] in REGIONS[options.region]]
+            else:
+                regions = [record.geometry for record in shape.records() if record.attributes['NAME_1'] == options.region]
             if len(regions) == 0:
                 raise ValueError('That region does not exist in that shapefile.')
-            area = regionmask.Regions(regions)
-            mask = area.mask(dataset.longitude, dataset.latitude, lon_name=lon_label, lat_name=lat_label)
-            dataset = dataset.where(~numpy.isnan(mask))
-            dataset['longitude'] = dataset.longitude.values - 0.01
-            dataset['latitude'] = dataset.latitude.values - 0.01
+            dataset = dataset.ffill(lon_label, limit=1).bfill(lon_label, limit=1)
+            dataset = dataset.ffill(lat_label, limit=1).bfill(lat_label, limit=1)
+            dataset.rio.write_crs('epsg:4326', inplace=True)
+            dataset = dataset.rio.clip(regions, all_touched=True)
 
         latitude = {
             'min': dataset[lat_label].min().item(),
@@ -339,7 +355,10 @@ def generate_map(map_args):
     if options.region is None:
         area = shape.geometries()
     else:
-        area = [record.geometry for record in shape.records() if record.attributes['NAME_1'] == options.region]
+        if options.region in REGIONS:
+            area = [record.geometry for record in shape.records() if record.attributes['NAME_2'] in REGIONS[options.region]]
+        else:
+            area = [record.geometry for record in shape.records() if record.attributes['NAME_1'] == options.region]
     ax.add_geometries(area, cartopy.crs.PlateCarree(), edgecolor='none', facecolor='#afafaf', linewidth=1, zorder=0)
 
     # Plot the data
@@ -354,6 +373,12 @@ def generate_map(map_args):
         if options.plot == 'contour':
             im = ax.contourf(data[longitude['label']], data[latitude['label']], data[options.var_name], extend='both',
                              transform=cartopy.crs.PlateCarree(), colors=options.colours, levels=levels, zorder=1)
+            # On smaller maps, bleeding over borders is visible due to a coarse resolution. This code masks the plot at
+            # the border but it's not necessary on larger maps.
+            if options.region is not None:
+                mask = PolygonPatch(cascaded_union(area), transform=ax.transData)
+                for c in im.collections:
+                    c.set_clip_path(mask)
         else:
             cmap = matplotlib.colors.ListedColormap(options.colours)
             im = ax.pcolormesh(data[longitude['label']], data[latitude['label']], data[options.var_name], cmap=cmap,
@@ -364,9 +389,23 @@ def generate_map(map_args):
         if options.region is None or state.attributes['NAME_1'] == options.region:
             ax.add_geometries([state.geometry], cartopy.crs.PlateCarree(), edgecolor='black', facecolor='none',
                               linewidth=0.4, zorder=3)
+    if options.region in REGIONS:
+        ax.add_geometries(area, cartopy.crs.PlateCarree(), edgecolor='black', facecolor='none',
+                          linewidth=0.4, zorder=3)
 
     # Add a colourbar
-    colourbar_axis = figure.add_axes([options.colourbar_position[0], options.colourbar_position[1] + .03, 0.019, 0.16])
+    # Colourbar size is reduced for maps covering smaller regions - otherwise it appears too large compared to the
+    # region
+    if options.region in REGIONS:
+        colourbar_width = .014
+        colourbar_height = .125
+        colourbar_space = .025
+    else:
+        colourbar_width = .019
+        colourbar_height = .16
+        colourbar_space = .03
+    colourbar_axis = figure.add_axes([options.colourbar_position[0], options.colourbar_position[1] + colourbar_space,
+                                      colourbar_width, colourbar_height])
     colourbar = figure.colorbar(im, cax=colourbar_axis, extendfrac=0)
     if options.categories is not None:
         colourbar.ax.tick_params(axis='both', which='both', length=0)
@@ -375,18 +414,32 @@ def generate_map(map_args):
         else:
             colourbar.set_ticks([x*0.85 + 0.5 for x in levels])
         colourbar.set_ticklabels(options.categories.split(', '))
+    category_font = SMALL_REGIONAL_FONT if options.region in REGIONS else SMALL_FONT
     for tick in colourbar_axis.get_yticklabels():
-        tick.set_font_properties(SMALL_FONT)
+        tick.set_font_properties(category_font)
 
     # Add extra colorbar segment for no data if required
     if options.no_data:
-        nodata_axis = figure.add_axes([options.colourbar_position[0], options.colourbar_position[1], 0.019, 0.015])
+        nodata_axis = figure.add_axes([options.colourbar_position[0], options.colourbar_position[1], colourbar_width,
+                                       colourbar_height/10])
         nodata_cmap = matplotlib.colors.ListedColormap(['#afafaf'])
         matplotlib.colorbar.ColorbarBase(nodata_axis, cmap=nodata_cmap, extend='neither')
         nodata_axis.get_yaxis().set_ticks([])
-        nodata_axis.text(1.3, .4, 'No data', ha='left', va='center', fontproperties=SMALL_FONT)
+        nodata_axis.text(1.3, .4, 'No data', ha='left', va='center', fontproperties=category_font)
 
     # Add date of this map, and title/subtitle/index name if given
+    if options.region in REGIONS:
+        title_font = TITLE_REGIONAL_FONT
+        subtitle_font = SUBTITLE_REGIONAL_FONT
+        regular_font = REGULAR_REGIONAL_FONT
+        overlay_font = OVERLAY_REGIONAL_FONT
+        overlay_position = .3
+    else:
+        title_font = TITLE_FONT
+        subtitle_font = SUBTITLE_FONT
+        regular_font = REGULAR_FONT
+        overlay_font = OVERLAY_FONT
+        overlay_position = .4
     if date is not None:
         if options.time_window is not 1:
             if options.time_window_type == 'beginning':
@@ -398,19 +451,20 @@ def generate_map(map_args):
         else:
             date_str = date.strftime('%B %Y')
         pyplot.text(options.label_position[0], options.label_position[1], date_str, transform=ax.transAxes,
-                    fontproperties=REGULAR_FONT)
+                    fontproperties=regular_font)
+    label_space = .04 if options.region in REGIONS else .05
     if options.title:
-        pyplot.text(options.label_position[0], options.label_position[1] + .05, options.title, transform=ax.transAxes,
-                    fontproperties=TITLE_FONT)
+        pyplot.text(options.label_position[0], options.label_position[1] + label_space, options.title,
+                    transform=ax.transAxes, fontproperties=title_font)
     if options.subtitle:
-        pyplot.text(options.label_position[0], options.label_position[1] + .1, options.subtitle, transform=ax.transAxes,
-                    fontproperties=SUBTITLE_FONT)
+        pyplot.text(options.label_position[0], options.label_position[1] + label_space*2, options.subtitle,
+                    transform=ax.transAxes, fontproperties=subtitle_font)
     if options.colourbar_label:
-        colourbar_axis.set_title(options.colourbar_label, fontproperties=REGULAR_FONT)
+        colourbar_axis.set_title(options.colourbar_label, fontproperties=regular_font)
 
     # Add prototype overlay if requested
     if options.prototype:
-        pyplot.text(.5, .4, "PROTOTYPE", transform=ax.transAxes, alpha=.15, fontproperties=OVERLAY_FONT,
+        pyplot.text(.55, overlay_position, "PROTOTYPE", transform=ax.transAxes, alpha=.15, fontproperties=overlay_font,
                     horizontalalignment='center', verticalalignment='center')
 
     # Save map

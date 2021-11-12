@@ -12,8 +12,8 @@ import calendar
 import math
 import numpy
 from cartopy.io import shapereader
-import regionmask
 import multiprocessing
+import rioxarray
 
 logging.basicConfig(level=logging.WARN, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d  %H:%M:%S")
 LOGGER = logging.getLogger(__name__)
@@ -176,11 +176,10 @@ def calc_monthly_et_short_crop(file_path):
         with xarray.open_dataset(et_path) as dataset:
             # If the last month is incomplete we should drop it
             dataset = drop_incomplete_months(dataset)
-            monthly_et = dataset.resample(time='M').sum(skipna=False)
-            monthly_et = utils.truncate_time_dim(monthly_et)
-            monthly_et['et_short_crop'].attrs['units'] = dataset.et_short_crop.units
+            dataset['et_short_crop'] = dataset['et_short_crop'].resample(time='M').sum(skipna=False, keep_attrs=True)
+            dataset = utils.truncate_time_dim(dataset)
             output_file_path = et_path.replace('et_short_crop', 'monthly_et_short_crop')
-            utils.save_to_netcdf(monthly_et, output_file_path)
+            utils.save_to_netcdf(dataset, output_file_path)
     merge_years('monthly_et_short_crop', file_path)
 
 
@@ -188,7 +187,9 @@ def merge_years(dataset_name, file_path):
     LOGGER.info('Merging files for: ' + dataset_name)
     output_path = get_merged_dataset_path(file_path, dataset_name)
     inputs_path = file_path.format(dataset=dataset_name, year='*', filetype='nc')
-    with xarray.open_mfdataset(inputs_path, chunks={'time': 10}, combine='by_coords', parallel=True, engine='h5netcdf') as dataset:
+    with xarray.open_mfdataset(
+            inputs_path, chunks={'time': 10}, combine='by_coords', parallel=True, engine='h5netcdf'
+    ) as dataset:
         # Dimensions must be in this order to be accepted by the climate indices tool
         dataset = dataset.drop_vars('crs', errors='ignore').transpose('lat', 'lon', 'time')
         if dataset_name not in DAILY_DATASETS:
@@ -267,9 +268,8 @@ def combine_ndvi(file_path):
             full_dataset = archive_dataset.combine_first(realtime_dataset)
         shape = read_shape('shapes/gadm36_AUS_0.shp')
         regions = [record.geometry for record in shape.records() if record.attributes['NAME_0'] == 'Australia']
-        area = regionmask.Regions(regions)
-        mask = area.mask(full_dataset.lon, full_dataset.lat, lon_name='lon', lat_name='lat')
-        full_dataset = full_dataset.where(~numpy.isnan(mask))
+        full_dataset.rio.write_crs('epsg:4326', inplace=True).rio.clip(regions, all_touched=True)
+        full_dataset = full_dataset.drop_vars('spatial_ref')
         full_dataset = full_dataset.rename({'NDVI': 'ndvi', 'lat': 'latitude', 'lon': 'longitude'})
         output_file_path = get_merged_dataset_path(file_path, 'ndvi')
         utils.save_to_netcdf(full_dataset, output_file_path)
@@ -286,8 +286,9 @@ def read_shape(shapefile=None):
 
 def regrid_ndvi(input_path, output_path, chunks):
     with xarray.open_dataset(
-        input_path, chunks=chunks, drop_variables=['crs', 'TIME_GRID'], mask_and_scale=False
+        input_path, chunks=chunks, mask_and_scale=False
     ) as dataset:
+        dataset = dataset.drop_vars(['crs', 'TIME_GRID', 'NDVI_unc', 'NOBS', 'QFLAG', 'spatial_ref'], errors='ignore')
         dataset = dataset.where(dataset.lon >= 112.0, drop=True)
         dataset = dataset.where(dataset.lon <= 154.0, drop=True)
         dataset = dataset.where(dataset.lat >= -44.0, drop=True)
@@ -336,7 +337,8 @@ def avg_over_period(dataset_name, file_path, scale):
                 chunk_length += 1
             dataset = dataset.chunk({'time': chunk_length})
             var = list(dataset.keys())[0]
-            dataset[new_var_name] = dataset[var].rolling(time=scale, min_periods=scale).construct('window').mean('window')
+            dataset[new_var_name] = dataset[var].rolling(time=scale, min_periods=scale).construct('window').\
+                mean('window')
             # This operation doesn't account for missing time entries. We need to remove results around those time gaps
             # that shouldn't have enough data to exist.
             time = dataset['time'].values
