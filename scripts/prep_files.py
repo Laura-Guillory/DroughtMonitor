@@ -187,9 +187,7 @@ def merge_years(dataset_name, file_path):
     LOGGER.info('Merging files for: ' + dataset_name)
     output_path = get_merged_dataset_path(file_path, dataset_name)
     inputs_path = file_path.format(dataset=dataset_name, year='*', filetype='nc')
-    with xarray.open_mfdataset(
-            inputs_path, chunks={'time': 10}, combine='by_coords', parallel=True, engine='h5netcdf'
-    ) as dataset:
+    with xarray.open_mfdataset(inputs_path, chunks={'time': 10}, combine='by_coords', parallel=True, engine='h5netcdf') as dataset:
         # Dimensions must be in this order to be accepted by the climate indices tool
         dataset = dataset.drop_vars('crs', errors='ignore').transpose('lat', 'lon', 'time')
         if dataset_name not in DAILY_DATASETS:
