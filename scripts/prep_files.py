@@ -150,7 +150,8 @@ def calc_monthly_avg_temp(file_path):
                 # We expect warnings here about means of empty slices, just ignore them
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore', category=RuntimeWarning)
-                    monthly_dataset = dataset.resample(time='M').mean().transpose('lat', 'lon', 'time')
+                    monthly_dataset = dataset.drop_vars('crs', errors='ignore').resample(time='M').mean()
+                    monthly_dataset = monthly_dataset.transpose('lat', 'lon', 'time')
                 monthly_dataset = utils.truncate_time_dim(monthly_dataset)
                 monthly_dataset[input_dataset].attrs['units'] = dataset[input_dataset].units
                 output_file_path = path.replace(input_dataset, 'monthly_' + input_dataset)
@@ -173,10 +174,10 @@ def calc_monthly_et_short_crop(file_path):
     # So we calculate monthly for each individual file then merge
     et_paths = glob.glob(file_path.format(dataset='et_short_crop', year='*', filetype='nc'))
     for et_path in et_paths:
-        with xarray.open_dataset(et_path) as dataset:
+        with xarray.open_dataset(et_path, drop_variables=['crs']) as dataset:
             # If the last month is incomplete we should drop it
             dataset = drop_incomplete_months(dataset)
-            dataset['et_short_crop'] = dataset['et_short_crop'].resample(time='M').sum(skipna=False, keep_attrs=True)
+            dataset = dataset.resample(time='M').sum(skipna=False, keep_attrs=True)
             dataset = utils.truncate_time_dim(dataset)
             output_file_path = et_path.replace('et_short_crop', 'monthly_et_short_crop')
             utils.save_to_netcdf(dataset, output_file_path)
@@ -187,9 +188,9 @@ def merge_years(dataset_name, file_path):
     LOGGER.info('Merging files for: ' + dataset_name)
     output_path = get_merged_dataset_path(file_path, dataset_name)
     inputs_path = file_path.format(dataset=dataset_name, year='*', filetype='nc')
-    with xarray.open_mfdataset(inputs_path, chunks={'time': 10}, combine='by_coords', parallel=True, engine='h5netcdf') as dataset:
+    with xarray.open_mfdataset(inputs_path, chunks={'time': 10}, combine='by_coords', parallel=True, engine='h5netcdf', drop_variables=['crs']) as dataset:
         # Dimensions must be in this order to be accepted by the climate indices tool
-        dataset = dataset.drop_vars('crs', errors='ignore').transpose('lat', 'lon', 'time')
+        dataset = dataset.transpose('lat', 'lon', 'time')
         if dataset_name not in DAILY_DATASETS:
             dataset = utils.truncate_time_dim(dataset)
         encoding = {'time': {'units': 'days since 1889-01', '_FillValue': None}}
