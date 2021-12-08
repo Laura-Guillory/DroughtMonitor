@@ -14,6 +14,7 @@ import matplotlib
 from matplotlib.font_manager import FontProperties
 from matplotlib import pyplot
 import matplotlib.patches
+import matplotlib.patheffects as PathEffects
 import warnings
 import rioxarray
 from descartes import PolygonPatch
@@ -31,7 +32,7 @@ COLORBAR_LABELS_X_OFFSET = 1.3
 
 REGIONS = {
     'SEQ': {'Brisbane', 'Moreton Bay', 'Logan', 'Ipswich', 'Redland', 'Scenic Rim', 'Somerset', 'Lockyer Valley',
-            'Gold Coast', 'Sunshine Coast', 'Toowoomba'}
+            'Gold Coast', 'Sunshine Coast', 'Toowoomba', 'Southern Downs'}
 }
 
 
@@ -386,6 +387,12 @@ def generate_map(map_args):
     if options.region in REGIONS:
         ax.add_geometries(area, cartopy.crs.PlateCarree(), edgecolor='black', facecolor='none',
                           linewidth=0.4, zorder=3)
+        for record in shape.records():
+            if record.attributes['NAME_2'] in REGIONS[options.region]:
+                region_label = ax.text(record.geometry.centroid.x, record.geometry.centroid.y, record.attributes['NAME_2'], fontproperties=TITLE_FONT, ha='center',
+                                       va='center', transform=cartopy.crs.PlateCarree(), color='white', size=10)
+                region_label.set_path_effects([PathEffects.withStroke(linewidth=1, foreground='black')])
+                region_label.set_zorder(5)
 
     # Add a colourbar
     colourbar_axis = figure.add_axes([options.colourbar_position[0], options.colourbar_position[1] + 0.03,
