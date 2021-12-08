@@ -359,7 +359,7 @@ def generate_map(map_args):
     if options.levels is not None and len(options.levels) > 1:
         levels = options.levels
     elif options.min is not None and options.max is not None and options.levels is not None:
-        levels = numpy.linspace(options.min, options.max, options.levels[0])
+        levels = numpy.linspace(int(options.min), int(options.max), int(options.levels[0]))
     else:
         levels = None
     with warnings.catch_warnings():
