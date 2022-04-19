@@ -57,8 +57,8 @@ def download_datasets(path, datasets):
             manifest_destination = os.path.dirname(path.format(dataset=dataset, date='', filetype='')) \
                                    + '/archive_manifest.txt'
             try_to_download(DOWNLOAD_URLS['NDVI']['archive'], manifest_destination)
-            username = input('Username: ')
-            password = getpass()
+            username = 'w0025825'
+            password = 'W00@usq7462'
             # Download all files listed in manifest
             with open(manifest_destination) as manifest:
                 for line in manifest:
