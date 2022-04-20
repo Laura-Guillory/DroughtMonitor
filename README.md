@@ -276,3 +276,9 @@ _Web Developer_
 Centre for Applied Climate Science  
 University of Southern Queensland  
 [laura.guillory@usq.edu.au](mailto:laura.guillory@usq.edu.au)
+
+**Jillian Jackson**
+_Technician_
+Centre for Applied Climate Science
+University of Southern Queensland
+[jillian.jackson@usq.edu.au](mailto:jillian.jackson@usq.edu.au)
